@@ -9,6 +9,7 @@ import { setOnAuthFailure } from '@/lib/api/client';
 import { AuthApi } from '@/lib/api/endpoints';
 import { clearTokens, getAccessToken, setTokens } from '@/lib/api/tokens';
 import { useDataStore } from '@/stores/data';
+import { useSyncStore } from '@/stores/sync';
 
 export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
@@ -39,7 +40,12 @@ export const useSessionStore = create<SessionState>((set) => {
 
     hydrate: async () => {
       const token = await getAccessToken();
-      set(token ? { status: 'authenticated' } : { status: 'unauthenticated' });
+      if (token) {
+        set({ status: 'authenticated' });
+        useSyncStore.getState().pull();
+      } else {
+        set({ status: 'unauthenticated' });
+      }
     },
 
     login: async (email, password) => {
@@ -49,6 +55,7 @@ export const useSessionStore = create<SessionState>((set) => {
       // Point local storage at this account (wipes leftover demo/other-user data).
       useDataStore.getState().prepareForUser(res.user.email, { email: res.user.email, name });
       set({ status: 'authenticated', user: { email: res.user.email, name } });
+      useSyncStore.getState().pull();
     },
 
     register: async (email, password, name, openingSavings) => {
@@ -58,6 +65,7 @@ export const useSessionStore = create<SessionState>((set) => {
         .getState()
         .prepareForUser(res.user.email, { email: res.user.email, name: res.user.name ?? name, openingSavings });
       set({ status: 'authenticated', user: { email: res.user.email, name: res.user.name ?? name } });
+      useSyncStore.getState().pull();
     },
 
     /** Offline demo entry — loads the demo dataset, no backend required. */

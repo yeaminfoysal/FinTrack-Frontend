@@ -36,8 +36,8 @@ export interface SyncPushPayload {
 
 export const SyncApi = {
   push: (payload: SyncPushPayload) => api.post('/sync/push', payload).then((r) => r.data),
-  pull: (since: string) =>
-    api.get('/sync/pull', { params: { since } }).then((r) => r.data),
+  pull: (since?: string) =>
+    api.get('/sync/pull', { params: since ? { since } : {} }).then((r) => r.data),
 };
 
 export const HealthApi = {

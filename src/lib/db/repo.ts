@@ -109,6 +109,36 @@ export function getPracticals(db: SQLiteDatabase): PracticalBalance[] {
   }));
 }
 
+export function getPendingRecords(db: SQLiteDatabase) {
+  return {
+    incomes: db.getAllSync<Row>("SELECT * FROM income WHERE syncStatus = 'PENDING'").map(toIncome),
+    expenses: db.getAllSync<Row>("SELECT * FROM expense WHERE syncStatus = 'PENDING'").map(toExpense),
+    loans: db.getAllSync<Row>("SELECT * FROM loan WHERE syncStatus = 'PENDING'").map(toLoan),
+    monthlySummaries: db.getAllSync<Row>("SELECT * FROM monthly_summary WHERE syncStatus = 'PENDING'").map(toSummary),
+  };
+}
+
+export function markAsSynced(
+  db: SQLiteDatabase,
+  ids: { incomes: string[]; expenses: string[]; loans: string[]; summaries: string[] },
+) {
+  db.withTransactionSync(() => {
+    const bindIds = (arr: string[]) => arr.map(() => '?').join(',');
+    if (ids.incomes.length > 0) {
+      db.runSync(`UPDATE income SET syncStatus = 'SYNCED' WHERE id IN (${bindIds(ids.incomes)})`, ids.incomes);
+    }
+    if (ids.expenses.length > 0) {
+      db.runSync(`UPDATE expense SET syncStatus = 'SYNCED' WHERE id IN (${bindIds(ids.expenses)})`, ids.expenses);
+    }
+    if (ids.loans.length > 0) {
+      db.runSync(`UPDATE loan SET syncStatus = 'SYNCED' WHERE id IN (${bindIds(ids.loans)})`, ids.loans);
+    }
+    if (ids.summaries.length > 0) {
+      db.runSync(`UPDATE monthly_summary SET syncStatus = 'SYNCED' WHERE id IN (${bindIds(ids.summaries)})`, ids.summaries);
+    }
+  });
+}
+
 // ---- writes (INSERT OR REPLACE by primary key) ----
 export function upsertIncome(db: SQLiteDatabase, i: Income): void {
   db.runSync(

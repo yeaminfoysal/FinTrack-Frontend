@@ -48,7 +48,7 @@ export const darkTokens: ThemeTokens = {
   line: 'rgba(255,255,255,0.08)',
   primary: '#19A06B',
   primary2: '#22B978',
-  onPrimary: '#04140C',
+  onPrimary: '#EAFBF1',
   income: '#34C98A',
   expense: '#FF7E63',
   lent: '#5E94F7',

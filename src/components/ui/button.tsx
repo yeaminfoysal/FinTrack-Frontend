@@ -1,4 +1,4 @@
-import { ActivityIndicator, Pressable, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, TouchableOpacity, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { useTheme } from '@/providers/theme-provider';
 
@@ -35,9 +35,11 @@ export function Button({
   const border = variant === 'outline' ? accent : 'transparent';
 
   return (
-    <Pressable
-      onPress={disabled || loading ? undefined : onPress}
-      style={({ pressed }) => [
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={disabled || loading}
+      activeOpacity={0.85}
+      style={[
         {
           borderRadius: 14,
           borderWidth: variant === 'outline' ? 1 : 0,
@@ -45,7 +47,7 @@ export function Button({
           backgroundColor: bg,
           paddingVertical: 14,
           paddingHorizontal: 16,
-          opacity: disabled ? 0.5 : pressed ? 0.85 : 1,
+          opacity: disabled ? 0.5 : 1,
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center',
@@ -61,6 +63,6 @@ export function Button({
           <Text style={{ color: fg, fontSize: 14, fontWeight: '600' }}>{label}</Text>
         </View>
       )}
-    </Pressable>
+    </TouchableOpacity>
   );
 }
