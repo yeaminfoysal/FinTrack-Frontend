@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "FinTrack-Frontend",
+    "name": "FinTrack",
     "slug": "FinTrack-Frontend",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,7 +8,8 @@
     "scheme": "fintrackfrontend",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.yeaminfoysal.fintrack"
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +18,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.yeaminfoysal.fintrack"
     },
     "web": {
       "output": "static",
@@ -40,7 +42,8 @@
       "expo-font",
       "expo-image",
       "expo-status-bar",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

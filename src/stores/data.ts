@@ -5,8 +5,8 @@
  */
 import { create } from 'zustand';
 
-import { computeDashboard, type DashboardSnapshot } from '@/lib/calc';
-import { currentMonthKey, monthKeyOf, type MonthKey } from '@/lib/date';
+import { closedMonthChain, computeDashboard, type DashboardSnapshot, type MonthFigures } from '@/lib/calc';
+import { currentMonthKey, monthKeyOf, parseMonthKey, type MonthKey } from '@/lib/date';
 import { getDb } from '@/lib/db';
 import {
   clearAllData,
@@ -80,6 +80,25 @@ function autoAdjustPractical(s: DataState, dateIso: string, delta: number): Pick
   return { practicals: { ...s.practicals, [key]: updated } };
 }
 
+/**
+ * Practical-balance adjustment for an edited entry. `oldDelta`/`newDelta` are the
+ * signed cash effects before and after the edit; if the date moved to another
+ * month, undo the effect in the old month and apply it in the new one.
+ */
+function adjustForEdit(
+  s: DataState,
+  oldIso: string,
+  oldDelta: number,
+  newIso: string,
+  newDelta: number,
+): Pick<DataState, 'practicals'> | null {
+  if (monthKeyOf(new Date(oldIso)) === monthKeyOf(new Date(newIso))) {
+    return autoAdjustPractical(s, newIso, newDelta - oldDelta);
+  }
+  const undone = autoAdjustPractical(s, oldIso, -oldDelta);
+  return autoAdjustPractical(undone ? { ...s, ...undone } : s, newIso, newDelta) ?? undone;
+}
+
 interface DataState {
   ready: boolean;
   ownerEmail: string | null;
@@ -94,6 +113,11 @@ interface DataState {
   init: () => void;
   /** Reloads all data from SQLite into memory (used after a background sync pull) */
   reloadFromDb: () => void;
+  /**
+   * Month-close catch-up: (re)computes the summary of every month before the
+   * running one and persists only the months whose figures changed.
+   */
+  closeMonths: () => void;
   /** Seed the demo dataset (only for "continue as demo"). */
   seedDemo: () => void;
   /** Point local storage at a real account; wipes data if the owner changed. */
@@ -136,6 +160,24 @@ function withDb(fn: (db: NonNullable<ReturnType<typeof getDb>>) => void): void {
     } catch (err) {}
   }, 500);
 }
+
+const FIGURE_KEYS = [
+  'openingBalance',
+  'totalIncome',
+  'totalDailyExpense',
+  'outstandingLent',
+  'outstandingBorrowed',
+  'untrackedExpense',
+  'monthlySaving',
+  'closingBalance',
+  'practicalBalance',
+] as const;
+
+function sameFigures(stored: MonthlySummary, figures: MonthFigures): boolean {
+  return FIGURE_KEYS.every((k) => (stored[k] ?? null) === (figures[k] ?? null));
+}
+
+const monthIndex = (r: { year: number; month: number }) => r.year * 100 + r.month;
 
 export const useDataStore = create<DataState>((set, get) => ({
   ready: false,
@@ -195,6 +237,63 @@ export const useDataStore = create<DataState>((set, get) => ({
     } catch {
       // ignore
     }
+  },
+
+  closeMonths: () => {
+    const s = get();
+    // The demo ships a fixed closed-month history; recomputing would overwrite it.
+    if (!s.ready || s.ownerEmail === DEMO_OWNER) return;
+
+    const currentKey = currentMonthKey();
+    // One stored row per month: a live row beats a tombstone, then the newest write wins.
+    const stored = new Map<number, MonthlySummary>();
+    for (const row of s.summaries) {
+      const prev = stored.get(monthIndex(row));
+      if (
+        !prev ||
+        (prev.isDeleted && !row.isDeleted) ||
+        (prev.isDeleted === row.isDeleted && row.updatedAt > prev.updatedAt)
+      ) {
+        stored.set(monthIndex(row), row);
+      }
+    }
+
+    const chain = closedMonthChain({
+      currentKey,
+      baseOpening: s.profile.openingSavings,
+      incomes: s.incomes,
+      expenses: s.expenses,
+      loans: s.loans,
+      summaries: s.summaries,
+      practicalFor: (key) => {
+        const local = s.practicals[key];
+        if (local) return local.amount;
+        // Another device may have closed this month with a practical balance this one never saw.
+        const row = stored.get(monthIndex(parseMonthKey(key)));
+        return row && !row.isDeleted ? row.practicalBalance : null;
+      },
+    });
+
+    const changed: MonthlySummary[] = [];
+    const closed = chain.map((figures) => {
+      const prev = stored.get(monthIndex(figures));
+      if (prev && !prev.isDeleted && sameFigures(prev, figures)) return prev;
+      const rec: MonthlySummary = prev
+        ? { ...prev, ...figures, isDeleted: false, deletedAt: null, updatedAt: nowIso(), syncStatus: 'PENDING' }
+        : { ...newBase(), ...figures };
+      changed.push(rec);
+      return rec;
+    });
+
+    const monthMoved = s.monthKey < currentKey;
+    if (changed.length === 0 && !monthMoved) return;
+
+    const chainMonths = new Set(chain.map(monthIndex));
+    const summaries = [...closed, ...s.summaries.filter((row) => !chainMonths.has(monthIndex(row)))].sort(
+      (a, b) => monthIndex(b) - monthIndex(a),
+    );
+    set({ summaries, ...(monthMoved ? { monthKey: currentKey } : {}) });
+    if (changed.length > 0) withDb((db) => changed.forEach((row) => upsertSummary(db, row)));
   },
 
   seedDemo: () => {
@@ -275,9 +374,8 @@ export const useDataStore = create<DataState>((set, get) => ({
     set((s) => {
       const incomes = s.incomes.map((i) => {
         if (i.id !== id) return i;
-        const delta = patch.amount !== undefined ? patch.amount - i.amount : 0;
         updated = { ...i, ...patch, updatedAt: nowIso(), syncStatus: 'PENDING' };
-        adj = autoAdjustPractical(s, updated.date, delta) || {};
+        adj = adjustForEdit(s, i.date, i.amount, updated.date, updated.amount) || {};
         return updated;
       });
       return { incomes, ...adj };
@@ -319,9 +417,8 @@ export const useDataStore = create<DataState>((set, get) => ({
     set((s) => {
       const expenses = s.expenses.map((e) => {
         if (e.id !== id) return e;
-        const delta = patch.amount !== undefined ? -(patch.amount - e.amount) : 0;
         updated = { ...e, ...patch, updatedAt: nowIso(), syncStatus: 'PENDING' };
-        adj = autoAdjustPractical(s, updated.date, delta) || {};
+        adj = adjustForEdit(s, e.date, -e.amount, updated.date, -updated.amount) || {};
         return updated;
       });
       return { expenses, ...adj };
@@ -436,6 +533,23 @@ export const useDataStore = create<DataState>((set, get) => ({
     });
   },
 }));
+
+// Month-close catch-up (Modification #8 & #11): re-run the closed-month chain
+// whenever something it depends on changes — app open (ready), local writes,
+// sync pulls, backdated edits, practical balance or opening savings. Months
+// whose figures didn't change aren't rewritten, so this settles immediately.
+useDataStore.subscribe((s, prev) => {
+  if (
+    s.ready !== prev.ready ||
+    s.incomes !== prev.incomes ||
+    s.expenses !== prev.expenses ||
+    s.loans !== prev.loans ||
+    s.practicals !== prev.practicals ||
+    s.profile.openingSavings !== prev.profile.openingSavings
+  ) {
+    s.closeMonths();
+  }
+});
 
 // ---------------------------------------------------------------------------
 // Web persistence fallback. On web there is no SQLite (see src/lib/db/

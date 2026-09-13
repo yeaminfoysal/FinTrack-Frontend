@@ -1,4 +1,4 @@
-import { Text, TextInput, View, type KeyboardTypeOptions } from 'react-native';
+import { Text, TextInput, View, type KeyboardTypeOptions, type TextInputProps } from 'react-native';
 
 import { useTheme } from '@/providers/theme-provider';
 
@@ -11,6 +11,10 @@ interface FieldProps {
   multiline?: boolean;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   secureTextEntry?: boolean;
+  maxLength?: number;
+  /** Autofill hints, e.g. "one-time-code" / "oneTimeCode" for emailed codes. */
+  autoComplete?: TextInputProps['autoComplete'];
+  textContentType?: TextInputProps['textContentType'];
   /** Big glyph prefix (e.g. "৳"). */
   prefix?: string;
 }
@@ -24,6 +28,9 @@ export function Field({
   multiline,
   autoCapitalize = 'sentences',
   secureTextEntry,
+  maxLength,
+  autoComplete,
+  textContentType,
   prefix,
 }: FieldProps) {
   const { tokens } = useTheme();
@@ -55,6 +62,9 @@ export function Field({
           multiline={multiline}
           autoCapitalize={autoCapitalize}
           secureTextEntry={secureTextEntry}
+          maxLength={maxLength}
+          autoComplete={autoComplete}
+          textContentType={textContentType}
           style={{
             flex: 1,
             color: tokens.ink,

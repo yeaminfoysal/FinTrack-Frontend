@@ -110,3 +110,24 @@ export function inputDateToIso(input: string): string {
   const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0);
   return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
 }
+
+const BN_WEEKDAYS = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
+
+export type DayKey = string; // "YYYY-MM-DD" (local)
+
+/** Local calendar day "YYYY-MM-DD" of an ISO date — used to group records by day. */
+export function dayKeyOf(iso: string): DayKey {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+/** "রবিবার" from an ISO date. */
+export function weekdayBn(iso: string): string {
+  return BN_WEEKDAYS[new Date(iso).getDay()];
+}
+
+/** Number of days in the month of `key`. */
+export function daysInMonth(key: MonthKey): number {
+  const { year, month } = parseMonthKey(key);
+  return new Date(year, month, 0).getDate();
+}

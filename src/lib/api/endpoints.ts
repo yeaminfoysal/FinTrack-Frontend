@@ -5,7 +5,7 @@ import type { Expense, Income, Loan, MonthlySummary } from '@/lib/types';
 export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
-  user: { id: string; email: string; name?: string };
+  user: { id: string; email: string; name?: string; openingSavings?: number };
 }
 
 export const AuthApi = {
@@ -13,10 +13,14 @@ export const AuthApi = {
     api.post<AuthResponse>('/auth/login', { email, password }).then((r) => r.data),
   register: (payload: { email: string; password: string; name?: string; openingSavings?: number }) =>
     api.post<AuthResponse>('/auth/register', payload).then((r) => r.data),
+  /** Emails a 6-digit reset code. Always succeeds for a valid email (doesn't reveal accounts). */
   forgotPassword: (email: string) =>
-    api.post('/auth/forgot-password', { email }).then((r) => r.data),
+    api.post<{ success: boolean }>('/auth/forgot-password', { email }).then((r) => r.data),
+  /** Exchanges the emailed code for a short-lived token used by resetPassword. */
+  verifyResetCode: (email: string, code: string) =>
+    api.post<{ resetToken: string }>('/auth/verify-reset-code', { email, code }).then((r) => r.data),
   resetPassword: (token: string, password: string) =>
-    api.post('/auth/reset-password', { token, password }).then((r) => r.data),
+    api.post<{ success: boolean }>('/auth/reset-password', { token, password }).then((r) => r.data),
   logout: () => api.post('/auth/logout').then((r) => r.data),
 };
 

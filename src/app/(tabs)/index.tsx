@@ -244,6 +244,7 @@ function MiniStat({ label, value, tokens }: { label: string; value: number; toke
 
 function TransactionRow({ item }: { item: Activity }) {
   const { tokens } = useTheme();
+  const router = useRouter();
   const color =
     item.kind === 'income'
       ? tokens.income
@@ -252,8 +253,18 @@ function TransactionRow({ item }: { item: Activity }) {
         : item.kind === 'lent'
           ? tokens.lent
           : tokens.borrowed;
+  // Income/expense rows open their edit screen; loans are managed from the loans tab.
+  const edit =
+    item.kind === 'income'
+      ? () => router.push({ pathname: '/add-income', params: { id: item.id } })
+      : item.kind === 'expense'
+        ? () => router.push({ pathname: '/add-expense', params: { id: item.id } })
+        : undefined;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 11, paddingHorizontal: 4 }}>
+    <Pressable
+      onPress={edit}
+      disabled={!edit}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 11, paddingHorizontal: 4 }}>
       <View
         style={{
           width: 40,
@@ -277,6 +288,6 @@ function TransactionRow({ item }: { item: Activity }) {
         size={14}
         color={color}
       />
-    </View>
+    </Pressable>
   );
 }

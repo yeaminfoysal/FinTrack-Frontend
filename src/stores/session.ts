@@ -53,7 +53,11 @@ export const useSessionStore = create<SessionState>((set) => {
       await setTokens(res.accessToken, res.refreshToken);
       const name = res.user.name ?? email;
       // Point local storage at this account (wipes leftover demo/other-user data).
-      useDataStore.getState().prepareForUser(res.user.email, { email: res.user.email, name });
+      useDataStore.getState().prepareForUser(res.user.email, {
+        email: res.user.email,
+        name,
+        openingSavings: res.user.openingSavings ?? 0,
+      });
       set({ status: 'authenticated', user: { email: res.user.email, name } });
       useSyncStore.getState().pull();
     },

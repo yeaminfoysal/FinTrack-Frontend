@@ -142,6 +142,7 @@ Total Expense = Daily Expense + Outstanding Lent + Untracked Expense
 ```
 Net Worth = Practical Balance + Outstanding Lent − Outstanding Borrowed
 ```
+- Practical না দিলে Practical-এর জায়গায় **Theoretical Balance** ধরো — তখন untracked = 0, অর্থাৎ হাতে থাকা টাকা = theoretical ধরা হচ্ছেই। কখনো ৳0 ধরবে না (তাহলে শুধু loan থেকে negative net worth আসে)।
 
 ### Loan নিয়ম (Lend + Borrow)
 | direction | অর্থ | Theoretical-এ |
@@ -213,7 +214,7 @@ Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `na
 > Local dev: backend চলে `http://localhost:3000/api`। **ফোন/এমুলেটরে `localhost` কাজ করবে না** — মেশিনের LAN IP (যেমন `http://192.168.x.x:3000/api`) বা tunnel ব্যবহার করো। `app.json` বা `.env`-এ `EXPO_PUBLIC_API_URL` রাখো।
 > Auth লাগে এমন সব route-এ header: `Authorization: Bearer <accessToken>`। amount সব paisa (number)।
 
-**Auth (public):** `POST /auth/register` `{email,password,name?,openingSavings?}` · `POST /auth/login` · `POST /auth/refresh` `{refreshToken}` · `POST /auth/logout` · `POST /auth/forgot-password` `{email}` · `POST /auth/reset-password` `{token,password}`
+**Auth (public):** `POST /auth/register` `{email,password,name?,openingSavings?}` · `POST /auth/login` · `POST /auth/refresh` `{refreshToken}` · `POST /auth/logout` · `POST /auth/forgot-password` `{email}` (৬ সংখ্যার কোড email হয়) · `POST /auth/verify-reset-code` `{email,code}` → `{resetToken}` · `POST /auth/reset-password` `{token: resetToken, password}`
 **Users:** `GET /users/me` · `PATCH /users/me` `{name?}` · `PATCH /users/me/settings` `{currency?,timezone?,openingSavings?}`
 **Income/Expense:** `POST|GET /incomes` (`?from&to`), `GET|PATCH|DELETE /incomes/:id` · একইভাবে `/expenses` (list-এ `?category` ও আছে)
 **Loan:** `POST|GET /loans` (`?direction&status`), `GET|PATCH|DELETE /loans/:id`, `POST /loans/:id/settle` `{settledDate?}`
@@ -252,6 +253,13 @@ Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `na
   - local `monthly_summary`-তে save করো এবং backend-এ push করো (`PUT /summary/monthly` বা sync push) — তাহলে History-তে per-month untracked দেখা যাবে।
 - **Idempotent** হতে হবে (একই মাস দুবার close হবে না — unique year+month)।
 - **Backdated edit → recompute (§11):** closed মাসে backdated income/expense add/edit/delete হলে **সেই মাস + পরের সব মাস recompute** করো (carry-forward chain ভেঙে যায়)। Recompute idempotent।
+- **বাস্তবায়ন** — `closeMonths()` (`src/stores/data.ts`), chain: `closedMonthChain()` (`src/lib/calc`):
+  - `lastClosedMonth` রাখা হয় না। প্রতিবার প্রথম record-এর মাস থেকে চলতি মাসের আগের মাস পর্যন্ত **পুরো chain** নতুন করে গণনা হয়; শুধু যে মাসের figure বদলেছে সেটাই `PENDING` হয়ে save + push হয়। Catch-up, backdated recompute আর idempotency — তিনটাই এই এক পথে।
+  - Trigger: store subscription — app open (`ready`), income/expense/loan/practical/openingSavings বদলালে (sync pull সহ), আর app foreground-এ এলে।
+  - Closed মাসের Outstanding Lent/Borrowed = **সেই মাসের শেষে** যা বাকি ছিল (`outstandingLoansAt`) — পরে loan settle হলেও পুরোনো মাসের summary বদলায় না।
+  - Local `practical_balance` না থাকলে stored summary-র `practicalBalance` ধরা হয় (অন্য device-এ close হওয়া মাস)।
+  - Closed মাসের dashboard/report stored summary থেকে দেখায় — তাই ক্লোজিং সবসময় পরের মাসের ওপেনিং-এর সমান।
+  - Demo account (`__demo__`) skip — এর seed history fixed।
 
 ---
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import { SyncApi } from '@/lib/api/endpoints';
+import { SyncApi, UsersApi } from '@/lib/api/endpoints';
 import { getDb } from '@/lib/db';
 import { getMeta, setMeta, getPendingRecords, markAsSynced, upsertIncome, upsertExpense, upsertLoan, upsertSummary } from '@/lib/db/repo';
 import { useDataStore } from '@/stores/data';
@@ -70,12 +70,35 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           localStorage.setItem(META_SYNC_KEY, response.serverTime);
         }
       }
+
+      // Also sync user profile (openingSavings, currency, timezone) from backend.
+      // This ensures cross-device consistency for profile fields that aren't in
+      // the sync tables (income/expense/loan/summary).
+      try {
+        const me = await UsersApi.me();
+        if (me) {
+          const profilePatch: Record<string, any> = {};
+          if (me.openingSavings !== undefined) profilePatch.openingSavings = Number(me.openingSavings);
+          if (me.currency) profilePatch.currency = me.currency;
+          if (me.timezone) profilePatch.timezone = me.timezone;
+          if (me.name) profilePatch.name = me.name;
+          if (me.email) profilePatch.email = me.email;
+          if (Object.keys(profilePatch).length > 0) {
+            useDataStore.getState().updateProfile(profilePatch);
+          }
+        }
+      } catch (profileErr: any) {
+        console.warn('[sync] profile fetch failed (non-critical):', profileErr?.message);
+      }
+
       console.log('[sync] pull complete');
     } catch (err: any) {
       console.warn('Pull sync failed:', err?.response?.data ?? err?.message ?? err);
     } finally {
       set({ isSyncing: false });
     }
+    // Writes made while the pull held the lock (e.g. month-close on app open) skipped their push.
+    void get().push();
   },
 
   push: async () => {
