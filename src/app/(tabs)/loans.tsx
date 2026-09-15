@@ -1,47 +1,73 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AmountText } from '@/components/ui/amount-text';
+import { initialOf } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Icon } from '@/components/ui/icon';
+import { IconButton } from '@/components/ui/icon-button';
+import { Pressable } from '@/components/ui/pressable';
 import { Screen } from '@/components/ui/screen';
 import { Segmented } from '@/components/ui/segmented';
-import { darken, withAlpha } from '@/constants/tokens';
-import { dayMonthBn, fullDateBn, toBnDigits } from '@/lib/date';
+import { Text } from '@/components/ui/text';
+import { withAlpha } from '@/constants/tokens';
+import { dayMonthBn, fullDateBn } from '@/lib/date';
+import { localDigits } from '@/lib/digits';
+import { formatTaka } from '@/lib/money';
 import type { Loan, LoanDirection } from '@/lib/types';
 import { useTheme } from '@/providers/theme-provider';
 import { useDataStore } from '@/stores/data';
+import { confirmDialog, showToast } from '@/stores/ui';
+
+type SortKey = 'date' | 'amount';
+
+const DIRECTION_OPTIONS: { value: LoanDirection; label: string }[] = [
+  { value: 'LENT', label: 'ধার দেওয়া' },
+  { value: 'BORROWED', label: 'ধার নেওয়া' },
+];
 
 export default function LoansScreen() {
   const { tokens } = useTheme();
   const router = useRouter();
   const [tab, setTab] = useState<LoanDirection>('LENT');
+  const [sort, setSort] = useState<SortKey>('date');
 
   const loans = useDataStore((s) => s.loans);
   const settleLoan = useDataStore((s) => s.settleLoan);
+  const unsettleLoan = useDataStore((s) => s.unsettleLoan);
 
-  const active = loans.filter((l) => !l.isDeleted);
-  const lent = active.filter((l) => l.direction === 'LENT');
-  const borrowed = active.filter((l) => l.direction === 'BORROWED');
+  const visible = loans.filter((l) => !l.isDeleted);
+  const lent = visible.filter((l) => l.direction === 'LENT');
+  const borrowed = visible.filter((l) => l.direction === 'BORROWED');
+  const activeOf = (list: Loan[]) => list.filter((l) => l.status === 'ACTIVE');
+  const totalOf = (list: Loan[]) => activeOf(list).reduce((sum, l) => sum + l.amount, 0);
 
-  const sum = (arr: Loan[]) => arr.filter((l) => l.status === 'ACTIVE').reduce((s, l) => s + l.amount, 0);
-  const totalLent = sum(lent);
-  const totalBorrowed = sum(borrowed);
-  const lentActiveCount = lent.filter((l) => l.status === 'ACTIVE').length;
-  const borrowedActiveCount = borrowed.filter((l) => l.status === 'ACTIVE').length;
-
-  const list = (tab === 'LENT' ? lent : borrowed).sort((a, b) => {
+  // Active loans first, then newest date or the largest amount.
+  const list = [...(tab === 'LENT' ? lent : borrowed)].sort((a, b) => {
     if (a.status !== b.status) return a.status === 'ACTIVE' ? -1 : 1;
-    return a.date < b.date ? 1 : -1;
+    if (sort === 'amount' && a.amount !== b.amount) return b.amount - a.amount;
+    return b.date.localeCompare(a.date);
   });
 
-  const confirmSettle = (loan: Loan) => {
-    const verb = loan.direction === 'LENT' ? 'ফেরত পেয়েছেন' : 'ফেরত দিয়েছেন';
-    Alert.alert('নিশ্চিত করুন', `${loan.personName} — টাকা কি ${verb}?`, [
-      { text: 'বাতিল', style: 'cancel' },
-      { text: 'হ্যাঁ', onPress: () => settleLoan(loan.id) },
-    ]);
+  const settle = async (loan: Loan) => {
+    const isLent = loan.direction === 'LENT';
+    const confirmed = await confirmDialog({
+      title: isLent ? 'টাকা ফেরত পেয়েছেন?' : 'টাকা শোধ করেছেন?',
+      message: `${loan.personName} — ${formatTaka(loan.amount)}। এটা ${isLent ? 'পাওনা' : 'দেনা'} থেকে বাদ যাবে।`,
+      confirmLabel: isLent ? 'হ্যাঁ, পেয়েছি' : 'হ্যাঁ, শোধ করেছি',
+    });
+    if (!confirmed) return;
+    settleLoan(loan.id);
+    showToast({
+      message: `${loan.personName} — ${isLent ? 'ফেরত পাওয়া' : 'শোধ করা'} হিসেবে রাখা হয়েছে`,
+      actionLabel: 'ফিরিয়ে নিন',
+      onAction: () => unsettleLoan(loan.id),
+    });
   };
+
+  const addLoan = () => router.push({ pathname: '/add', params: { type: 'loan', direction: tab } });
 
   return (
     <Screen>
@@ -51,60 +77,58 @@ export default function LoansScreen() {
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: 12,
           marginTop: 8,
           marginBottom: 18,
         }}>
-        <View>
-          <Text style={{ fontSize: 20, fontWeight: '700', color: tokens.ink }}>লোন</Text>
-          <Text style={{ fontSize: 12, color: tokens.muted }}>ধার দেওয়া ও ধার নেওয়া</Text>
+        <View style={{ flex: 1 }}>
+          <Text accessibilityRole="header" style={{ fontSize: 21, fontWeight: '700', color: tokens.ink }}>
+            লোন
+          </Text>
+          <Text style={{ fontSize: 13, color: tokens.muted }}>ধার দেওয়া ও ধার নেওয়া</Text>
         </View>
-        <View
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 12,
-            backgroundColor: tokens.surface2,
-            borderColor: tokens.line,
-            borderWidth: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-          <Text style={{ color: tokens.muted, fontSize: 17 }}>⇅</Text>
-        </View>
+        <IconButton
+          icon="swap-vertical"
+          label={sort === 'date' ? 'টাকার পরিমাণ অনুযায়ী সাজান' : 'তারিখ অনুযায়ী সাজান'}
+          onPress={() => setSort(sort === 'date' ? 'amount' : 'date')}
+        />
       </View>
 
       {/* Totals */}
       <View style={{ flexDirection: 'row', gap: 11, marginBottom: 18 }}>
-        <TotalCard
-          label="মোট পাওনা"
-          amount={totalLent}
-          meta={`${toBnDigits(lentActiveCount)} জন · Active`}
-          color={tokens.lent}
-        />
-        <TotalCard
-          label="মোট দেনা"
-          amount={totalBorrowed}
-          meta={`${toBnDigits(borrowedActiveCount)} জন · Active`}
-          color={tokens.borrowed}
-        />
+        <TotalCard label="মোট পাওনা" amount={totalOf(lent)} count={activeOf(lent).length} fill={tokens.lentFill} />
+        <TotalCard label="মোট দেনা" amount={totalOf(borrowed)} count={activeOf(borrowed).length} fill={tokens.borrowedFill} />
       </View>
 
-      <Segmented
-        options={[
-          { value: 'LENT', label: 'ধার দেওয়া' },
-          { value: 'BORROWED', label: 'ধার নেওয়া' },
-        ]}
-        value={tab}
-        onChange={(v) => setTab(v)}
-      />
+      <Segmented options={DIRECTION_OPTIONS} value={tab} onChange={setTab} accessibilityLabel="লোনের ধরন" />
+      {list.length > 0 ? (
+        <Text style={{ fontSize: 12.5, color: tokens.muted, marginTop: 10, marginHorizontal: 4 }}>
+          চলমান আগে, তারপর {sort === 'date' ? 'নতুন তারিখ আগে' : 'বেশি টাকা আগে'}
+        </Text>
+      ) : null}
 
-      <View style={{ gap: 11, marginTop: 16 }}>
+      <View style={{ gap: 11, marginTop: 12 }}>
         {list.length === 0 ? (
-          <Text style={{ color: tokens.muted, fontSize: 13, paddingHorizontal: 4, paddingVertical: 20, textAlign: 'center' }}>
-            কোনো {tab === 'LENT' ? 'পাওনা' : 'দেনা'} নেই।
-          </Text>
+          <EmptyState
+            icon="people-outline"
+            title={tab === 'LENT' ? 'কোনো পাওনা নেই' : 'কোনো দেনা নেই'}
+            message={
+              tab === 'LENT'
+                ? 'কাউকে ধার দিলে এখানে লিখে রাখুন — কে কত ফেরত দেবে মনে থাকবে।'
+                : 'কারো থেকে ধার নিলে এখানে লিখে রাখুন — কাকে কত ফেরত দিতে হবে মনে থাকবে।'
+            }
+            actionLabel="নতুন লোন যোগ করুন"
+            onAction={addLoan}
+          />
         ) : (
-          list.map((loan) => <LoanCard key={loan.id} loan={loan} onSettle={() => confirmSettle(loan)} />)
+          list.map((loan) => (
+            <LoanCard
+              key={loan.id}
+              loan={loan}
+              onSettle={() => void settle(loan)}
+              onOpen={() => router.push({ pathname: '/add-loan', params: { id: loan.id } })}
+            />
+          ))
         )}
       </View>
 
@@ -112,6 +136,8 @@ export default function LoansScreen() {
         <View
           style={{
             marginTop: 14,
+            flexDirection: 'row',
+            gap: 10,
             backgroundColor: tokens.surface2,
             borderColor: tokens.line,
             borderWidth: 1,
@@ -119,47 +145,40 @@ export default function LoansScreen() {
             borderRadius: 14,
             padding: 14,
           }}>
-          <Text style={{ fontSize: 11.5, color: tokens.muted, lineHeight: 18 }}>
-            ℹ️ ধার নেওয়া টাকা <Text style={{ color: tokens.ink, fontWeight: '700' }}>আয় নয়</Text> — এটি ফেরতযোগ্য দায়। ফেরত দিলে সেটি খরচও নয়, শুধু দায় নিষ্পত্তি।
+          <Icon name="information-circle-outline" size={18} color={tokens.muted} />
+          <Text style={{ flex: 1, fontSize: 13, color: tokens.muted, lineHeight: 20 }}>
+            ধার নেওয়া টাকা <Text style={{ color: tokens.ink, fontWeight: '700' }}>আয় নয়</Text> — এটি ফেরতযোগ্য দায়। শোধ করলে
+            সেটি খরচও নয়, শুধু দায় নিষ্পত্তি।
           </Text>
         </View>
       ) : null}
 
-      <Button
-        label="নতুন লোন যোগ করুন"
-        leftGlyph="+"
-        onPress={() => router.push('/add-loan')}
-        style={{ marginTop: 18 }}
-      />
+      {list.length > 0 ? <Button label="নতুন লোন যোগ করুন" icon="add" onPress={addLoan} style={{ marginTop: 18 }} /> : null}
     </Screen>
   );
 }
 
-function TotalCard({ label, amount, meta, color }: { label: string; amount: number; meta: string; color: string }) {
+function TotalCard({ label, amount, count, fill }: { label: string; amount: number; count: number; fill: string }) {
+  const { tokens } = useTheme();
   return (
-    <View style={{ flex: 1, borderRadius: 18, padding: 15, backgroundColor: color, overflow: 'hidden' }}>
-      <View
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: '55%',
-          backgroundColor: darken(color, 0.22),
-          opacity: 0.5,
-        }}
-      />
-      <Text style={{ fontSize: 12, color: '#fff', opacity: 0.85 }}>{label}</Text>
-      <AmountText paisa={amount} size={23} weight="700" color="#fff" style={{ marginTop: 5 }} />
-      <Text style={{ fontSize: 11, color: '#fff', opacity: 0.8, marginTop: 3 }}>{meta}</Text>
+    <View
+      accessible
+      accessibilityLabel={`${label} ${formatTaka(amount)}, ${localDigits(count)}টি চলমান`}
+      style={{ flex: 1, borderRadius: 18, padding: 15, backgroundColor: fill, overflow: 'hidden' }}>
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', backgroundColor: 'rgba(0,0,0,0.12)' }} />
+      <Text style={{ fontSize: 13, color: tokens.onFill }}>{label}</Text>
+      <AmountText paisa={amount} size={23} weight="700" color={tokens.onFill} numberOfLines={1} style={{ marginTop: 5 }} />
+      <Text style={{ fontSize: 12.5, color: tokens.onFill, marginTop: 3 }}>{localDigits(count)}টি চলমান</Text>
     </View>
   );
 }
 
-function LoanCard({ loan, onSettle }: { loan: Loan; onSettle: () => void }) {
+function LoanCard({ loan, onSettle, onOpen }: { loan: Loan; onSettle: () => void; onOpen: () => void }) {
   const { tokens } = useTheme();
-  const color = loan.direction === 'LENT' ? tokens.lent : tokens.borrowed;
+  const isLent = loan.direction === 'LENT';
+  const color = isLent ? tokens.lent : tokens.borrowed;
   const settled = loan.status === 'SETTLED';
+  const statusLabel = settled ? (isLent ? 'ফেরত পাওয়া' : 'শোধ করা') : 'চলমান';
 
   return (
     <View
@@ -169,31 +188,37 @@ function LoanCard({ loan, onSettle }: { loan: Loan; onSettle: () => void }) {
         borderWidth: 1,
         borderRadius: 16,
         padding: 14,
-        opacity: settled ? 0.62 : 1,
+        gap: 12,
       }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <Pressable
+        onPress={onOpen}
+        accessibilityRole="button"
+        accessibilityLabel={`${loan.personName}, ${formatTaka(loan.amount)}, ${statusLabel}`}
+        accessibilityHint="এডিট করতে ট্যাপ করুন"
+        style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, opacity: pressed ? 0.7 : 1 })}>
         <View
           style={{
             width: 42,
             height: 42,
             borderRadius: 12,
-            backgroundColor: settled ? tokens.surface2 : withAlpha(color, 0.12),
             alignItems: 'center',
             justifyContent: 'center',
+            backgroundColor: settled ? tokens.surface2 : withAlpha(color, 0.12),
           }}>
-          <Text style={{ color: settled ? tokens.muted : color, fontWeight: '700' }}>
-            {loan.personName.slice(0, 1)}
+          <Text style={{ fontSize: 16, fontWeight: '700', color: settled ? tokens.muted : color }}>
+            {initialOf(loan.personName)}
           </Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: tokens.ink }}>{loan.personName}</Text>
-          <Text style={{ fontSize: 11.5, color: tokens.muted }}>
+          <Text numberOfLines={1} style={{ fontSize: 14.5, fontWeight: '600', color: settled ? tokens.muted : tokens.ink }}>
+            {loan.personName}
+          </Text>
+          <Text numberOfLines={2} style={{ fontSize: 12.5, color: tokens.muted }}>
             {dayMonthBn(loan.date)}
-            {loan.note ? ` · "${loan.note}"` : ''}
-            {settled && loan.settledDate ? ` · ফেরত ${dayMonthBn(loan.settledDate)}` : ''}
+            {loan.note ? ` · ${loan.note}` : ''}
           </Text>
         </View>
-        <View style={{ alignItems: 'flex-end' }}>
+        <View style={{ alignItems: 'flex-end', gap: 4 }}>
           <AmountText
             paisa={loan.amount}
             size={16}
@@ -201,36 +226,44 @@ function LoanCard({ loan, onSettle }: { loan: Loan; onSettle: () => void }) {
             color={settled ? tokens.muted : color}
             style={settled ? { textDecorationLine: 'line-through' } : undefined}
           />
-          <Text
+          <View
             style={{
-              fontSize: 10,
-              fontWeight: '600',
-              marginTop: 3,
-              overflow: 'hidden',
-              color: settled ? tokens.muted : loan.direction === 'LENT' ? tokens.income : tokens.borrowed,
-              backgroundColor: settled ? tokens.surface2 : withAlpha(loan.direction === 'LENT' ? tokens.income : tokens.borrowed, 0.12),
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 5,
               paddingVertical: 2,
-              paddingHorizontal: 7,
-              borderRadius: 6,
+              paddingHorizontal: 8,
+              borderRadius: 999,
+              backgroundColor: tokens.surface2,
             }}>
-            {settled ? (loan.direction === 'LENT' ? 'Returned' : 'Paid') : 'Active'}
-          </Text>
+            <View
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: settled ? tokens.muted : isLent ? tokens.income : tokens.borrowed,
+              }}
+            />
+            <Text style={{ fontSize: 12, fontWeight: '600', color: tokens.ink }}>{statusLabel}</Text>
+          </View>
         </View>
-      </View>
-      {!settled ? (
+      </Pressable>
+      {settled ? (
+        loan.settledDate ? (
+          <Text style={{ fontSize: 12.5, color: tokens.muted }}>
+            {isLent ? 'ফেরত পাওয়া গেছে' : 'শোধ করা হয়েছে'} · {fullDateBn(loan.settledDate)}
+          </Text>
+        ) : null
+      ) : (
         <Button
-          label={loan.direction === 'LENT' ? 'ফেরত পেয়েছি (Returned)' : 'ফেরত দিয়েছি (Paid)'}
+          label={isLent ? 'ফেরত পেয়েছি' : 'শোধ করেছি'}
+          icon="checkmark"
           variant="outline"
           color={color}
+          size="sm"
           onPress={onSettle}
-          style={{ marginTop: 12, paddingVertical: 9 }}
         />
-      ) : null}
-      {settled && loan.settledDate ? (
-        <Text style={{ fontSize: 10.5, color: tokens.muted, marginTop: 8 }}>
-          নিষ্পত্তি হয়েছে · {fullDateBn(loan.settledDate)}
-        </Text>
-      ) : null}
+      )}
     </View>
   );
 }

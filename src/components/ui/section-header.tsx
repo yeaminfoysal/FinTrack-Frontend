@@ -1,14 +1,19 @@
-import { Pressable, Text, View } from 'react-native';
+import { View } from 'react-native';
 
+import { Icon } from '@/components/ui/icon';
+import { Pressable } from '@/components/ui/pressable';
+import { Text } from '@/components/ui/text';
 import { useTheme } from '@/providers/theme-provider';
 
 interface SectionHeaderProps {
   title: string;
   actionLabel?: string;
   onAction?: () => void;
+  /** Show a chevron after the action label (links to another screen). */
+  actionChevron?: boolean;
 }
 
-export function SectionHeader({ title, actionLabel, onAction }: SectionHeaderProps) {
+export function SectionHeader({ title, actionLabel, onAction, actionChevron = true }: SectionHeaderProps) {
   const { tokens } = useTheme();
   return (
     <View
@@ -17,13 +22,28 @@ export function SectionHeader({ title, actionLabel, onAction }: SectionHeaderPro
         alignItems: 'center',
         justifyContent: 'space-between',
         marginTop: 22,
-        marginBottom: 12,
+        marginBottom: 10,
         paddingHorizontal: 4,
+        minHeight: 32,
       }}>
-      <Text style={{ fontSize: 14, fontWeight: '700', color: tokens.ink }}>{title}</Text>
-      {actionLabel ? (
-        <Pressable onPress={onAction}>
-          <Text style={{ fontSize: 12, fontWeight: '600', color: tokens.primary }}>{actionLabel}</Text>
+      <Text accessibilityRole="header" style={{ fontSize: 15, fontWeight: '700', color: tokens.ink }}>
+        {title}
+      </Text>
+      {actionLabel && onAction ? (
+        <Pressable
+          onPress={onAction}
+          accessibilityRole="button"
+          hitSlop={10}
+          style={({ pressed }) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 2,
+            paddingVertical: 6,
+            paddingLeft: 8,
+            opacity: pressed ? 0.7 : 1,
+          })}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: tokens.primary }}>{actionLabel}</Text>
+          {actionChevron ? <Icon name="chevron-forward" size={14} color={tokens.primary} /> : null}
         </Pressable>
       ) : null}
     </View>

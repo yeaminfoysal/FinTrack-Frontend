@@ -7,8 +7,8 @@ import { create } from 'zustand';
 
 import { setOnAuthFailure } from '@/lib/api/client';
 import { AuthApi } from '@/lib/api/endpoints';
-import { clearTokens, getAccessToken, setTokens } from '@/lib/api/tokens';
-import { useDataStore } from '@/stores/data';
+import { clearTokens, getAccessToken, getRefreshToken, setTokens } from '@/lib/api/tokens';
+import { DEMO_OWNER, useDataStore } from '@/stores/data';
 import { useSyncStore } from '@/stores/sync';
 
 export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated';
@@ -25,6 +25,7 @@ interface SessionState {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string, openingSavings: number) => Promise<void>;
   loginDemo: () => Promise<void>;
+  /** Signs out locally and revokes the refresh token on the server (best effort). */
   logout: () => Promise<void>;
 }
 
@@ -80,6 +81,11 @@ export const useSessionStore = create<SessionState>((set) => {
     },
 
     logout: async () => {
+      if (useDataStore.getState().ownerEmail !== DEMO_OWNER) {
+        // Revoke the refresh token server-side. Offline this fails fast and the local sign-out still happens.
+        const refreshToken = await getRefreshToken();
+        if (refreshToken) await AuthApi.logout(refreshToken).catch(() => undefined);
+      }
       await clearTokens();
       set({ status: 'unauthenticated', user: null });
     },

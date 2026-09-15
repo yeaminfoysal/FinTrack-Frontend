@@ -1,20 +1,24 @@
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { Modal, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AmountText } from '@/components/ui/amount-text';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Icon } from '@/components/ui/icon';
+import { IconButton } from '@/components/ui/icon-button';
+import { Pressable } from '@/components/ui/pressable';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
-import { categoryMeta, INCOME_SOURCES } from '@/constants/categories';
+import { Text } from '@/components/ui/text';
+import { categoryMeta, incomeSourceMeta } from '@/constants/categories';
 import { withAlpha } from '@/constants/tokens';
 import { useDashboard } from '@/hooks/use-dashboard';
 import { dailyExpenses, monthDailyExpense, monthIncome, type DayExpenses } from '@/lib/calc';
 import {
   currentMonthKey,
-  dayKeyOf,
   dayMonthBn,
   daysInMonth,
   isInMonth,
@@ -24,17 +28,20 @@ import {
   nextMonthKey,
   parseMonthKey,
   prevMonthKey,
-  toBnDigits,
+  shiftDayKey,
+  todayKey,
   weekdayBn,
   type DayKey,
   type MonthKey,
 } from '@/lib/date';
+import { localDigits } from '@/lib/digits';
 import { formatTaka } from '@/lib/money';
 import { buildMonthReportHtml } from '@/lib/report-html';
-import { reportFileName, saveReportPdf, shareReportPdf } from '@/lib/report-pdf';
+import { saveReportPdf, shareReportPdf } from '@/lib/report-pdf';
 import type { Expense, Income, MonthlySummary } from '@/lib/types';
 import { useTheme } from '@/providers/theme-provider';
 import { useDataStore } from '@/stores/data';
+import { showToast } from '@/stores/ui';
 
 /** Months that have any income, expense or closed summary, plus the current month — newest first. */
 function monthsWithData(
@@ -88,14 +95,13 @@ export default function ReportScreen() {
   const closing = snapshot.opening + snapshot.saving;
   const spent = snapshot.monthDailyExpense + Math.max(snapshot.untracked, 0);
   const savedPct = snapshot.monthIncome > 0 ? Math.max(0, Math.min(100, (snapshot.saving / snapshot.monthIncome) * 100)) : 0;
-  const nextOpeningLabel = monthName(Number(nextMonthKey(monthKey).split('-')[1]));
+  const nextOpeningLabel = monthName(parseMonthKey(nextMonthKey(monthKey)).month);
 
   // Running month averages over the days elapsed so far; past months over the whole month.
-  const now = new Date();
-  const elapsedDays = isCurrent ? now.getDate() : daysInMonth(monthKey);
+  const elapsedDays = isCurrent ? new Date().getDate() : daysInMonth(monthKey);
   const dailyAverage = Math.round(snapshot.monthDailyExpense / elapsedDays);
-  const today = dayKeyOf(now.toISOString());
-  const yesterday = dayKeyOf(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).toISOString());
+  const today = todayKey();
+  const yesterday = shiftDayKey(today, -1);
 
   // The newest day starts expanded; the rest stay collapsed until tapped.
   const isDayOpen = (day: DayKey, idx: number) => openDays[day] ?? idx === 0;
@@ -112,13 +118,14 @@ export default function ReportScreen() {
         await shareReportPdf(html, monthKey);
       } else {
         const saved = await saveReportPdf(html, monthKey);
-        if (saved.status === 'saved') {
-          Alert.alert('PDF সেভ হয়েছে', `${reportFileName(monthKey)}\n"${saved.folder}" ফোল্ডারে রাখা হয়েছে।`);
-        }
+        if (saved.status === 'saved') showToast({ message: `PDF সেভ হয়েছে · "${saved.folder}" ফোল্ডারে` });
       }
     } catch (e) {
       console.warn('[report] PDF export failed:', e);
-      Alert.alert('PDF তৈরি করা যায়নি', e instanceof Error ? e.message : 'আবার চেষ্টা করুন।');
+      showToast({
+        tone: 'error',
+        message: `PDF তৈরি করা যায়নি। ${e instanceof Error ? e.message : 'আবার চেষ্টা করুন।'}`,
+      });
     } finally {
       setExporting(null);
     }
@@ -131,12 +138,15 @@ export default function ReportScreen() {
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: 10,
           marginTop: 8,
           marginBottom: 18,
         }}>
-        <View>
-          <Text style={{ fontSize: 20, fontWeight: '700', color: tokens.ink }}>মাসিক রিপোর্ট</Text>
-          <Text style={{ fontSize: 12, color: tokens.muted }}>পুরো মাসের সারসংক্ষেপ</Text>
+        <View style={{ flex: 1 }}>
+          <Text accessibilityRole="header" style={{ fontSize: 21, fontWeight: '700', color: tokens.ink }}>
+            মাসিক রিপোর্ট
+          </Text>
+          <Text style={{ fontSize: 13, color: tokens.muted }}>পুরো মাসের সারসংক্ষেপ</Text>
         </View>
         <View
           style={{
@@ -147,25 +157,49 @@ export default function ReportScreen() {
             borderWidth: 1,
             borderRadius: 999,
           }}>
-          <PillArrow glyph="‹" disabled={!canPrev} onPress={() => setMonthKey(prevMonthKey(monthKey))} />
-          <Pressable onPress={() => setPickerOpen(true)} hitSlop={6} style={{ paddingVertical: 8 }}>
-            <Text style={{ fontSize: 12.5, fontWeight: '600', color: tokens.ink }}>{monthLabelBn(monthKey)} ▾</Text>
+          <IconButton
+            icon="chevron-back"
+            label="আগের মাস"
+            variant="plain"
+            size={36}
+            iconSize={18}
+            disabled={!canPrev}
+            onPress={() => setMonthKey(prevMonthKey(monthKey))}
+          />
+          <Pressable
+            onPress={() => setPickerOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={`${monthLabelBn(monthKey)} — মাস বাছাই করুন`}
+            hitSlop={6}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: tokens.ink }}>{monthLabelBn(monthKey)}</Text>
+            <Icon name="chevron-down" size={14} color={tokens.muted} />
           </Pressable>
-          <PillArrow glyph="›" disabled={!canNext} onPress={() => setMonthKey(nextMonthKey(monthKey))} />
+          <IconButton
+            icon="chevron-forward"
+            label="পরের মাস"
+            variant="plain"
+            size={36}
+            iconSize={18}
+            disabled={!canNext}
+            onPress={() => setMonthKey(nextMonthKey(monthKey))}
+          />
         </View>
       </View>
 
       {/* Saving hero */}
-      <View style={{ borderRadius: 20, padding: 18, backgroundColor: tokens.primary, marginBottom: 16 }}>
-        <Text style={{ fontSize: 12.5, color: tokens.onPrimary, opacity: 0.85 }}>{monthTitle} সঞ্চয়</Text>
-        <AmountText paisa={snapshot.saving} size={30} weight="700" color={tokens.onPrimary} style={{ marginTop: 4, marginBottom: 14 }} />
-        <View style={{ flexDirection: 'row', height: 10, borderRadius: 6, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.2)' }}>
-          <View style={{ width: `${savedPct}%`, backgroundColor: 'rgba(255,255,255,0.95)' }} />
-          <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.45)' }} />
+      <View style={{ borderRadius: 20, padding: 18, backgroundColor: tokens.primaryFill, marginBottom: 16 }}>
+        <Text style={{ fontSize: 13.5, color: tokens.onFill }}>{monthTitle} সঞ্চয়</Text>
+        <AmountText paisa={snapshot.saving} size={30} weight="700" color={tokens.onFill} style={{ marginTop: 4, marginBottom: 14 }} />
+        <View
+          accessible
+          accessibilityLabel={`আয়ের ${localDigits(Math.round(savedPct))}% সঞ্চয় হয়েছে`}
+          style={{ flexDirection: 'row', height: 10, borderRadius: 6, overflow: 'hidden', backgroundColor: 'rgba(0,0,0,0.22)' }}>
+          <View style={{ width: `${savedPct}%`, backgroundColor: tokens.onFill }} />
         </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 7 }}>
-          <Text style={{ fontSize: 11, color: tokens.onPrimary, opacity: 0.85 }}>আয় {formatTaka(snapshot.monthIncome)}</Text>
-          <Text style={{ fontSize: 11, color: tokens.onPrimary, opacity: 0.85 }}>খরচ {formatTaka(spent)}</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+          <Text style={{ fontSize: 12.5, color: tokens.onFill }}>আয় {formatTaka(snapshot.monthIncome)}</Text>
+          <Text style={{ fontSize: 12.5, color: tokens.onFill }}>খরচ {formatTaka(spent)}</Text>
         </View>
       </View>
 
@@ -175,11 +209,11 @@ export default function ReportScreen() {
         <Divider />
         <BreakRow label="মোট আয়" value={`+ ${formatTaka(snapshot.monthIncome)}`} color={tokens.income} />
         <Divider />
-        <BreakRow label="মোট খরচ (Daily)" value={`− ${formatTaka(snapshot.monthDailyExpense)}`} color={tokens.expense} />
+        <BreakRow label="দৈনিক খরচ" value={`− ${formatTaka(snapshot.monthDailyExpense)}`} color={tokens.expense} />
         <Divider />
-        <BreakRow label="পাওনা (Outstanding Lent)" value={formatTaka(snapshot.outstandingLent)} color={tokens.lent} />
+        <BreakRow label="পাওনা (বাকি)" value={formatTaka(snapshot.outstandingLent)} color={tokens.lent} />
         <Divider />
-        <BreakRow label="দেনা (Outstanding Borrowed)" value={formatTaka(snapshot.outstandingBorrowed)} color={tokens.borrowed} />
+        <BreakRow label="দেনা (বাকি)" value={formatTaka(snapshot.outstandingBorrowed)} color={tokens.borrowed} />
         <Divider />
         <BreakRow
           label={snapshot.untracked < 0 ? 'আনট্র্যাকড আয়' : 'আনট্র্যাকড খরচ'}
@@ -187,16 +221,30 @@ export default function ReportScreen() {
           color={snapshot.untracked < 0 ? tokens.income : tokens.borrowed}
         />
         <Divider />
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: tokens.surface2 }}>
-          <Text style={{ fontSize: 13.5, fontWeight: '700', color: tokens.ink }}>ক্লোজিং ব্যালেন্স</Text>
-          <Text style={{ fontSize: 13.5, fontWeight: '700', color: tokens.ink, fontVariant: ['tabular-nums'] }}>{formatTaka(closing)}</Text>
+        <View
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            paddingVertical: 14,
+            paddingHorizontal: 16,
+            backgroundColor: tokens.surface2,
+          }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: tokens.ink }}>ক্লোজিং ব্যালেন্স</Text>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: tokens.ink, fontVariant: ['tabular-nums'] }}>
+            {formatTaka(closing)}
+          </Text>
         </View>
       </View>
 
-      <Card soft radius={14} style={{ marginTop: 14, borderStyle: 'dashed', paddingVertical: 12, paddingHorizontal: 15 }}>
-        <Text style={{ fontSize: 11.5, color: tokens.muted, lineHeight: 18 }}>
-          ↻ <Text style={{ color: tokens.ink, fontWeight: '700' }}>ক্যারি ফরোয়ার্ড:</Text> {nextOpeningLabel} মাসের ওপেনিং = {formatTaka(snapshot.opening)} + {formatTaka(snapshot.saving)} ={' '}
-          <Text style={{ color: tokens.ink, fontWeight: '600', fontVariant: ['tabular-nums'] }}>{formatTaka(closing)}</Text>
+      <Card
+        soft
+        radius={14}
+        style={{ marginTop: 14, borderStyle: 'dashed', paddingVertical: 12, paddingHorizontal: 15, flexDirection: 'row', gap: 10 }}>
+        <Icon name="repeat-outline" size={18} color={tokens.muted} />
+        <Text style={{ flex: 1, fontSize: 12.5, color: tokens.muted, lineHeight: 19 }}>
+          <Text style={{ color: tokens.ink, fontWeight: '700' }}>ক্যারি ফরোয়ার্ড:</Text> {nextOpeningLabel} মাসের ওপেনিং ={' '}
+          {formatTaka(snapshot.opening)} + {formatTaka(snapshot.saving)} ={' '}
+          <Text style={{ color: tokens.ink, fontWeight: '600' }}>{formatTaka(closing)}</Text>
         </Text>
       </Card>
 
@@ -205,49 +253,64 @@ export default function ReportScreen() {
         title="দিনভিত্তিক খরচ"
         actionLabel={days.length > 0 ? (allOpen ? 'সব বন্ধ করুন' : 'সব খুলুন') : undefined}
         onAction={toggleAll}
+        actionChevron={false}
       />
       {days.length > 0 ? (
-        <Text style={{ fontSize: 11.5, color: tokens.muted, marginTop: -4, marginBottom: 10, paddingHorizontal: 4 }}>
-          {toBnDigits(days.length)} দিনে মোট{' '}
-          <Text style={{ color: tokens.expense, fontWeight: '600' }}>{formatTaka(snapshot.monthDailyExpense)}</Text> · দৈনিক গড়{' '}
-          <Text style={{ color: tokens.ink, fontWeight: '600' }}>{formatTaka(dailyAverage)}</Text>
-        </Text>
-      ) : null}
-      {days.length > 0 || monthIncomes.length > 0 ? (
-        <Text style={{ fontSize: 11, color: tokens.muted, marginTop: -4, marginBottom: 10, paddingHorizontal: 4 }}>
-          ✎ যেকোনো খরচ বা আয়ে ট্যাপ করে এডিট বা ডিলিট করুন
-        </Text>
-      ) : null}
-      <View style={{ gap: 9 }}>
-        {days.length === 0 ? (
-          <Text style={{ color: tokens.muted, fontSize: 13, paddingHorizontal: 4 }}>এই মাসে কোনো খরচ নেই।</Text>
-        ) : (
-          days.map((d, idx) => (
-            <DayCard
-              key={d.day}
-              group={d}
-              relative={d.day === today ? 'আজ' : d.day === yesterday ? 'গতকাল' : weekdayBn(d.items[0].date)}
-              open={isDayOpen(d.day, idx)}
-              onToggle={() => setOpenDays((o) => ({ ...o, [d.day]: !isDayOpen(d.day, idx) }))}
-              onEdit={editExpense}
-            />
-          ))
-        )}
-      </View>
+        <>
+          <Text style={{ fontSize: 12.5, color: tokens.muted, marginTop: -4, marginBottom: 4, paddingHorizontal: 4 }}>
+            {localDigits(days.length)} দিনে মোট{' '}
+            <Text style={{ color: tokens.expense, fontWeight: '600' }}>{formatTaka(snapshot.monthDailyExpense)}</Text> · দৈনিক
+            গড় <Text style={{ color: tokens.ink, fontWeight: '600' }}>{formatTaka(dailyAverage)}</Text>
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10, paddingHorizontal: 4 }}>
+            <Icon name="create-outline" size={14} color={tokens.muted} />
+            <Text style={{ flex: 1, fontSize: 12.5, color: tokens.muted }}>যেকোনো খরচ বা আয়ে ট্যাপ করে এডিট বা ডিলিট করুন</Text>
+          </View>
+          <View style={{ gap: 9 }}>
+            {days.map((d, idx) => (
+              <DayCard
+                key={d.day}
+                group={d}
+                relative={d.day === today ? 'আজ' : d.day === yesterday ? 'গতকাল' : weekdayBn(d.items[0].date)}
+                open={isDayOpen(d.day, idx)}
+                onToggle={() => setOpenDays((o) => ({ ...o, [d.day]: !isDayOpen(d.day, idx) }))}
+                onEdit={editExpense}
+              />
+            ))}
+          </View>
+        </>
+      ) : (
+        <EmptyState
+          icon="receipt-outline"
+          title="এই মাসে কোনো খরচ নেই"
+          message={isCurrent ? 'খরচ যোগ করলে দিন অনুযায়ী এখানে দেখাবে।' : undefined}
+          actionLabel={isCurrent ? 'খরচ যোগ করুন' : undefined}
+          onAction={isCurrent ? () => router.push('/add') : undefined}
+        />
+      )}
 
       {/* Incomes of the month */}
       <SectionHeader title="আয়ের তালিকা" />
       {monthIncomes.length === 0 ? (
-        <Text style={{ color: tokens.muted, fontSize: 13, paddingHorizontal: 4 }}>এই মাসে কোনো আয় নেই।</Text>
+        <EmptyState
+          icon="wallet-outline"
+          title="এই মাসে কোনো আয় নেই"
+          actionLabel={isCurrent ? 'আয় যোগ করুন' : undefined}
+          onAction={isCurrent ? () => router.push({ pathname: '/add', params: { type: 'income' } }) : undefined}
+        />
       ) : (
         <View style={{ backgroundColor: tokens.surface, borderColor: tokens.line, borderWidth: 1, borderRadius: 14, overflow: 'hidden' }}>
           {monthIncomes.map((i, idx) => {
-            const src = INCOME_SOURCES.find((s) => s.key === i.source);
+            const src = incomeSourceMeta(i.source);
+            const title = i.note || src?.label || 'আয়';
             return (
               <Pressable
                 key={i.id}
                 onPress={() => editIncome(i.id)}
-                style={{
+                accessibilityRole="button"
+                accessibilityLabel={`${title}, ${formatTaka(i.amount)}`}
+                accessibilityHint="এডিট করতে ট্যাপ করুন"
+                style={({ pressed }) => ({
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: 12,
@@ -255,7 +318,8 @@ export default function ReportScreen() {
                   paddingHorizontal: 14,
                   borderTopWidth: idx === 0 ? 0 : 1,
                   borderTopColor: tokens.line,
-                }}>
+                  opacity: pressed ? 0.7 : 1,
+                })}>
                 <View
                   style={{
                     width: 40,
@@ -265,13 +329,13 @@ export default function ReportScreen() {
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}>
-                  <Text style={{ fontSize: 17 }}>{src?.icon ?? '↓'}</Text>
+                  <Icon name={src?.iconName ?? 'arrow-down'} size={19} color={tokens.income} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text numberOfLines={1} style={{ fontSize: 13.5, fontWeight: '600', color: tokens.ink }}>
-                    {i.note || src?.label || 'আয়'}
+                  <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '600', color: tokens.ink }}>
+                    {title}
                   </Text>
-                  <Text style={{ fontSize: 11, color: tokens.muted }}>
+                  <Text style={{ fontSize: 12.5, color: tokens.muted }}>
                     {dayMonthBn(i.date)}
                     {i.note && src ? ` · ${src.label}` : ''}
                   </Text>
@@ -283,39 +347,38 @@ export default function ReportScreen() {
         </View>
       )}
 
-      <SectionHeader title="মাসের ইতিহাস" actionLabel="Opening → Closing" />
-      <View style={{ gap: 9 }}>
-        {history.length === 0 ? (
-          <Text style={{ color: tokens.muted, fontSize: 13, paddingHorizontal: 4 }}>এখনো কোনো ক্লোজড মাস নেই।</Text>
-        ) : (
-          history.map((s) => <HistoryRow key={s.id} summary={s} />)
-        )}
-      </View>
-      <Text style={{ marginTop: 9, textAlign: 'center', fontSize: 11, color: tokens.muted }}>
-        stored MonthlySummary · <Text style={{ color: tokens.income }}>●</Text> Synced · client-authoritative
-      </Text>
+      <SectionHeader title="মাসের ইতিহাস" />
+      {history.length === 0 ? (
+        <Text style={{ color: tokens.muted, fontSize: 13, lineHeight: 20, paddingHorizontal: 4 }}>
+          এখনো কোনো মাস শেষ হয়নি — মাস শেষ হলে এখানে তার সারসংক্ষেপ দেখাবে।
+        </Text>
+      ) : (
+        <View style={{ gap: 9 }}>
+          {history.map((s) => (
+            <HistoryRow key={s.id} summary={s} />
+          ))}
+        </View>
+      )}
 
-      <Text style={{ marginTop: 18, marginBottom: 8, fontSize: 11.5, color: tokens.muted, textAlign: 'center' }}>
+      <Text style={{ marginTop: 22, marginBottom: 10, fontSize: 12.5, color: tokens.muted, textAlign: 'center' }}>
         {monthLabelBn(monthKey)}-এর পূর্ণ রিপোর্ট — সারসংক্ষেপ, আয়, দিনভিত্তিক খরচ ও লোন
       </Text>
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <Button
           label="PDF শেয়ার"
-          leftGlyph="⤴"
-          variant="danger"
+          icon="share-outline"
           loading={exporting === 'share'}
           disabled={exporting === 'save'}
-          onPress={() => exportPdf('share')}
+          onPress={() => void exportPdf('share')}
           style={{ flex: 1 }}
         />
         <Button
           label="PDF সেভ"
-          leftGlyph="⤓"
+          icon="download-outline"
           variant="outline"
-          color={tokens.expense}
           loading={exporting === 'save'}
           disabled={exporting === 'share'}
-          onPress={() => exportPdf('save')}
+          onPress={() => void exportPdf('save')}
           style={{ flex: 1 }}
         />
       </View>
@@ -337,15 +400,6 @@ export default function ReportScreen() {
   );
 }
 
-function PillArrow({ glyph, disabled, onPress }: { glyph: string; disabled: boolean; onPress: () => void }) {
-  const { tokens } = useTheme();
-  return (
-    <Pressable onPress={onPress} disabled={disabled} hitSlop={6} style={{ paddingVertical: 6, paddingHorizontal: 11 }}>
-      <Text style={{ fontSize: 17, lineHeight: 20, fontWeight: '600', color: tokens.ink, opacity: disabled ? 0.25 : 1 }}>{glyph}</Text>
-    </Pressable>
-  );
-}
-
 function Divider() {
   const { tokens } = useTheme();
   return <View style={{ height: 1, backgroundColor: tokens.line }} />;
@@ -354,9 +408,9 @@ function Divider() {
 function BreakRow({ label, value, color }: { label: string; value: string; color: string }) {
   const { tokens } = useTheme();
   return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 13, paddingHorizontal: 16 }}>
-      <Text style={{ fontSize: 13, color: tokens.muted }}>{label}</Text>
-      <Text style={{ fontSize: 13, fontWeight: '600', color, fontVariant: ['tabular-nums'] }}>{value}</Text>
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 13, paddingHorizontal: 16 }}>
+      <Text style={{ fontSize: 13.5, color: tokens.muted }}>{label}</Text>
+      <Text style={{ fontSize: 13.5, fontWeight: '600', color, fontVariant: ['tabular-nums'] }}>{value}</Text>
     </View>
   );
 }
@@ -376,11 +430,22 @@ function DayCard({
 }) {
   const { tokens } = useTheme();
   const date = group.items[0].date;
+  const count = `${localDigits(group.items.length)}টি খরচ`;
   return (
     <View style={{ backgroundColor: tokens.surface, borderColor: tokens.line, borderWidth: 1, borderRadius: 14, overflow: 'hidden' }}>
       <Pressable
         onPress={onToggle}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 14 }}>
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={`${dayMonthBn(date)}, ${relative}, ${count}, মোট ${formatTaka(group.total)}`}
+        style={({ pressed }) => ({
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+          paddingVertical: 11,
+          paddingHorizontal: 14,
+          opacity: pressed ? 0.8 : 1,
+        })}>
         <View
           style={{
             width: 40,
@@ -390,43 +455,50 @@ function DayCard({
             alignItems: 'center',
             justifyContent: 'center',
           }}>
-          <Text style={{ fontSize: 15, fontWeight: '700', color: tokens.expense }}>{toBnDigits(new Date(date).getDate())}</Text>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: tokens.ink }}>{localDigits(new Date(date).getDate())}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 13.5, fontWeight: '600', color: tokens.ink }}>{dayMonthBn(date)}</Text>
-          <Text style={{ fontSize: 11, color: tokens.muted }}>
-            {relative} · {toBnDigits(group.items.length)}টি খরচ
+          <Text style={{ fontSize: 14, fontWeight: '600', color: tokens.ink }}>{dayMonthBn(date)}</Text>
+          <Text style={{ fontSize: 12.5, color: tokens.muted }}>
+            {relative} · {count}
           </Text>
         </View>
         <AmountText paisa={group.total} size={14} weight="700" color={tokens.expense} />
-        <Text style={{ width: 14, textAlign: 'center', fontSize: 12, color: tokens.muted }}>{open ? '▾' : '▸'}</Text>
+        <Icon name={open ? 'chevron-down' : 'chevron-forward'} size={16} color={tokens.muted} />
       </Pressable>
       {open
         ? group.items.map((e) => {
             const meta = categoryMeta(e.category);
+            const title = e.description || meta.label;
             return (
               <Pressable
                 key={e.id}
                 onPress={() => onEdit(e.id)}
-                style={{
+                accessibilityRole="button"
+                accessibilityLabel={`${title}, ${formatTaka(e.amount)}`}
+                accessibilityHint="এডিট করতে ট্যাপ করুন"
+                style={({ pressed }) => ({
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: 12,
                   paddingVertical: 10,
                   paddingLeft: 14,
-                  paddingRight: 40,
+                  paddingRight: 44,
                   borderTopWidth: 1,
                   borderTopColor: tokens.line,
                   backgroundColor: tokens.surface2,
-                }}>
-                <Text style={{ width: 40, textAlign: 'center', fontSize: 17 }}>{meta.icon}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text numberOfLines={1} style={{ fontSize: 13, color: tokens.ink }}>
-                    {e.description || meta.label}
-                  </Text>
-                  <Text style={{ fontSize: 10.5, color: tokens.muted }}>{e.description ? meta.label : meta.en}</Text>
+                  opacity: pressed ? 0.7 : 1,
+                })}>
+                <View style={{ width: 40, alignItems: 'center' }}>
+                  <Icon name={meta.iconName} size={19} color={tokens.muted} />
                 </View>
-                <AmountText paisa={-e.amount} signed size={13} color={tokens.expense} />
+                <View style={{ flex: 1 }}>
+                  <Text numberOfLines={1} style={{ fontSize: 13.5, color: tokens.ink }}>
+                    {title}
+                  </Text>
+                  {e.description ? <Text style={{ fontSize: 12, color: tokens.muted }}>{meta.label}</Text> : null}
+                </View>
+                <AmountText paisa={-e.amount} signed size={13.5} color={tokens.expense} />
               </Pressable>
             );
           })
@@ -462,8 +534,12 @@ function MonthPicker({
         {/* Inner Pressable swallows taps so only the backdrop closes the sheet. */}
         <Pressable
           onPress={() => {}}
+          accessibilityViewIsModal
           style={{
             maxHeight: '70%',
+            width: '100%',
+            maxWidth: 520,
+            alignSelf: 'center',
             backgroundColor: tokens.bg,
             borderTopLeftRadius: 22,
             borderTopRightRadius: 22,
@@ -471,7 +547,9 @@ function MonthPicker({
             paddingHorizontal: 18,
             paddingBottom: 16 + insets.bottom,
           }}>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: tokens.ink, marginBottom: 12 }}>মাস বাছাই করুন</Text>
+          <Text accessibilityRole="header" style={{ fontSize: 17, fontWeight: '700', color: tokens.ink, marginBottom: 12 }}>
+            মাস বাছাই করুন
+          </Text>
           <ScrollView contentContainerStyle={{ gap: 8 }} showsVerticalScrollIndicator={false}>
             {months.map((key) => {
               const selected = key === value;
@@ -479,7 +557,9 @@ function MonthPicker({
                 <Pressable
                   key={key}
                   onPress={() => onSelect(key)}
-                  style={{
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  style={({ pressed }) => ({
                     flexDirection: 'row',
                     alignItems: 'center',
                     gap: 12,
@@ -489,18 +569,19 @@ function MonthPicker({
                     borderWidth: 1,
                     backgroundColor: selected ? withAlpha(tokens.primary, 0.12) : tokens.surface,
                     borderColor: selected ? tokens.primary : tokens.line,
-                  }}>
+                    opacity: pressed ? 0.8 : 1,
+                  })}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '600', color: selected ? tokens.primary : tokens.ink }}>
+                    <Text style={{ fontSize: 14.5, fontWeight: '600', color: selected ? tokens.primary : tokens.ink }}>
                       {monthLabelBn(key)}
                       {key === current ? ' · চলতি' : ''}
                     </Text>
-                    <Text style={{ fontSize: 11, color: tokens.muted }}>
+                    <Text style={{ fontSize: 12.5, color: tokens.muted }}>
                       আয় <Text style={{ color: tokens.income }}>{formatTaka(monthIncome(incomes, key))}</Text> · খরচ{' '}
                       <Text style={{ color: tokens.expense }}>{formatTaka(monthDailyExpense(expenses, key))}</Text>
                     </Text>
                   </View>
-                  {selected ? <Text style={{ fontSize: 16, fontWeight: '700', color: tokens.primary }}>✓</Text> : null}
+                  {selected ? <Icon name="checkmark" size={20} color={tokens.primary} /> : null}
                 </Pressable>
               );
             })}
@@ -514,6 +595,7 @@ function MonthPicker({
 function HistoryRow({ summary }: { summary: MonthlySummary }) {
   const { tokens } = useTheme();
   const key = `${summary.year}-${String(summary.month).padStart(2, '0')}`;
+  const untrackedIncome = summary.untrackedExpense < 0;
   return (
     <View
       style={{
@@ -527,17 +609,24 @@ function HistoryRow({ summary }: { summary: MonthlySummary }) {
         paddingVertical: 12,
         paddingHorizontal: 14,
       }}>
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 13.5, fontWeight: '600', color: tokens.ink }}>{monthLabelBn(key)}</Text>
-        <Text style={{ fontSize: 11, color: tokens.muted }}>
-          Opening {formatTaka(summary.openingBalance)} · খরচ{' '}
-          <Text style={{ color: tokens.expense }}>{formatTaka(summary.totalDailyExpense)}</Text> · Untracked{' '}
-          {formatTaka(summary.untrackedExpense)}
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={{ fontSize: 14, fontWeight: '600', color: tokens.ink }}>{monthLabelBn(key)}</Text>
+        <Text style={{ fontSize: 12.5, color: tokens.muted, lineHeight: 18 }}>
+          শুরু {formatTaka(summary.openingBalance)} · খরচ{' '}
+          <Text style={{ color: tokens.expense }}>{formatTaka(summary.totalDailyExpense)}</Text>
+        </Text>
+        <Text style={{ fontSize: 12.5, color: tokens.muted }}>
+          {untrackedIncome ? 'আনট্র্যাকড আয়' : 'আনট্র্যাকড খরচ'} {formatTaka(Math.abs(summary.untrackedExpense))}
         </Text>
       </View>
-      <View style={{ alignItems: 'flex-end' }}>
-        <AmountText paisa={summary.monthlySaving} signed size={14} color={summary.monthlySaving >= 0 ? tokens.income : tokens.expense} />
-        <Text style={{ fontSize: 10.5, color: tokens.muted }}>Closing {formatTaka(summary.closingBalance)}</Text>
+      <View style={{ alignItems: 'flex-end', gap: 2 }}>
+        <AmountText
+          paisa={summary.monthlySaving}
+          signed
+          size={14.5}
+          color={summary.monthlySaving >= 0 ? tokens.income : tokens.expense}
+        />
+        <Text style={{ fontSize: 12, color: tokens.muted }}>শেষে {formatTaka(summary.closingBalance)}</Text>
       </View>
     </View>
   );

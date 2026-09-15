@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
+import { Text } from '@/components/ui/text';
 import { useTheme } from '@/providers/theme-provider';
 
 export function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
@@ -12,22 +13,28 @@ export function AuthShell({ title, subtitle, children }: { title: string; subtit
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <SafeAreaView style={{ flex: 1 }}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24, width: '100%', maxWidth: 480, alignSelf: 'center' }}
+            keyboardShouldPersistTaps="handled">
             <View style={{ alignItems: 'center', marginBottom: 28 }}>
               <View
                 style={{
                   width: 60,
                   height: 60,
                   borderRadius: 18,
-                  backgroundColor: tokens.primary,
+                  backgroundColor: tokens.primaryFill,
                   alignItems: 'center',
                   justifyContent: 'center',
                   marginBottom: 14,
                 }}>
-                <Text style={{ color: '#fff', fontSize: 28, fontWeight: '800' }}>৳</Text>
+                <Text style={{ color: tokens.onFill, fontSize: 30, fontWeight: '700' }}>৳</Text>
               </View>
-              <Text style={{ fontSize: 24, fontWeight: '800', color: tokens.ink }}>{title}</Text>
-              <Text style={{ fontSize: 13, color: tokens.muted, marginTop: 6, textAlign: 'center' }}>{subtitle}</Text>
+              <Text accessibilityRole="header" style={{ fontSize: 25, fontWeight: '700', color: tokens.ink }}>
+                {title}
+              </Text>
+              <Text style={{ fontSize: 14, lineHeight: 21, color: tokens.muted, marginTop: 6, textAlign: 'center' }}>
+                {subtitle}
+              </Text>
             </View>
             {children}
           </ScrollView>

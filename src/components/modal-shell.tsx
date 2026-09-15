@@ -1,14 +1,22 @@
 import type { ReactNode } from 'react';
 import { useRouter } from 'expo-router';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
+import { IconButton } from '@/components/ui/icon-button';
+import { Text } from '@/components/ui/text';
 import { useTheme } from '@/providers/theme-provider';
+
+/** Closes a modal screen; falls back to home when it was opened directly (e.g. a web refresh). */
+export function useCloseModal(): () => void {
+  const router = useRouter();
+  return () => (router.canGoBack() ? router.back() : router.replace('/'));
+}
 
 export function ModalShell({ title, children }: { title: string; children: ReactNode }) {
   const { tokens, scheme } = useTheme();
-  const router = useRouter();
+  const close = useCloseModal();
   return (
     <View style={{ flex: 1, backgroundColor: tokens.bg }}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
@@ -18,29 +26,18 @@ export function ModalShell({ title, children }: { title: string; children: React
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
+            gap: 12,
             paddingHorizontal: 18,
-            paddingVertical: 14,
+            paddingVertical: 12,
           }}>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: tokens.ink }}>{title}</Text>
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={10}
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 12,
-              backgroundColor: tokens.surface2,
-              borderColor: tokens.line,
-              borderWidth: 1,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-            <Text style={{ color: tokens.muted, fontSize: 16 }}>✕</Text>
-          </Pressable>
+          <Text accessibilityRole="header" numberOfLines={1} style={{ flex: 1, fontSize: 19, fontWeight: '700', color: tokens.ink }}>
+            {title}
+          </Text>
+          <IconButton icon="close" label="বন্ধ করুন" onPress={close} />
         </View>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView
-            contentContainerStyle={{ paddingHorizontal: 18, paddingBottom: 32, gap: 14 }}
+            contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 4, paddingBottom: 32, gap: 16 }}
             keyboardShouldPersistTaps="handled">
             {children}
           </ScrollView>

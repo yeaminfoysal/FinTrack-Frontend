@@ -1,8 +1,11 @@
-import { ActivityIndicator, TouchableOpacity, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { Icon, type IconName } from '@/components/ui/icon';
+import { Pressable } from '@/components/ui/pressable';
+import { Text } from '@/components/ui/text';
 import { useTheme } from '@/providers/theme-provider';
 
-type Variant = 'primary' | 'outline' | 'ghost' | 'danger';
+type Variant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
 
 interface ButtonProps {
   label: string;
@@ -10,9 +13,13 @@ interface ButtonProps {
   variant?: Variant;
   /** Accent color for outline/ghost (defaults to primary). */
   color?: string;
-  leftGlyph?: string;
+  /** Background for a primary button that needs another fill, e.g. the loan colors. */
+  fill?: string;
+  icon?: IconName;
+  size?: 'md' | 'sm';
   loading?: boolean;
   disabled?: boolean;
+  accessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -21,37 +28,51 @@ export function Button({
   onPress,
   variant = 'primary',
   color,
-  leftGlyph,
+  fill,
+  icon,
+  size = 'md',
   loading,
   disabled,
+  accessibilityHint,
   style,
 }: ButtonProps) {
   const { tokens } = useTheme();
   const accent = color ?? tokens.primary;
+  const filled = variant === 'primary' || variant === 'danger';
 
   const bg =
-    variant === 'primary' ? tokens.primary : variant === 'danger' ? tokens.expense : 'transparent';
-  const fg = variant === 'primary' || variant === 'danger' ? '#fff' : accent;
-  const border = variant === 'outline' ? accent : 'transparent';
+    variant === 'primary'
+      ? (fill ?? tokens.primaryFill)
+      : variant === 'danger'
+        ? tokens.expenseFill
+        : variant === 'secondary'
+          ? tokens.surface2
+          : 'transparent';
+  const fg = filled ? tokens.onFill : variant === 'secondary' ? tokens.ink : accent;
+  const border = variant === 'outline' ? accent : variant === 'secondary' ? tokens.line : 'transparent';
+  const small = size === 'sm';
 
   return (
-    <TouchableOpacity
+    <Pressable
       onPress={onPress}
       disabled={disabled || loading}
-      activeOpacity={0.85}
-      style={[
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{ disabled: !!disabled, busy: !!loading }}
+      style={({ pressed }) => [
         {
+          minHeight: small ? 40 : 48,
           borderRadius: 14,
-          borderWidth: variant === 'outline' ? 1 : 0,
+          borderWidth: variant === 'outline' || variant === 'secondary' ? 1 : 0,
           borderColor: border,
           backgroundColor: bg,
-          paddingVertical: 14,
+          paddingVertical: small ? 8 : 12,
           paddingHorizontal: 16,
-          opacity: disabled ? 0.5 : 1,
+          opacity: disabled ? 0.5 : pressed ? 0.85 : 1,
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 8,
         },
         style,
       ]}>
@@ -59,10 +80,10 @@ export function Button({
         <ActivityIndicator color={fg} />
       ) : (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {leftGlyph ? <Text style={{ color: fg, fontSize: 17 }}>{leftGlyph}</Text> : null}
-          <Text style={{ color: fg, fontSize: 14, fontWeight: '600' }}>{label}</Text>
+          {icon ? <Icon name={icon} size={small ? 16 : 18} color={fg} /> : null}
+          <Text style={{ color: fg, fontSize: small ? 13.5 : 15, fontWeight: '600' }}>{label}</Text>
         </View>
       )}
-    </TouchableOpacity>
+    </Pressable>
   );
 }
