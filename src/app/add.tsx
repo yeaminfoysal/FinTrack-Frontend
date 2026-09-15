@@ -1,54 +1,36 @@
-import { useRouter } from 'expo-router';
-import { Pressable, Text, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 
-import { ModalShell } from '@/components/modal-shell';
-import { withAlpha } from '@/constants/tokens';
-import { useTheme } from '@/providers/theme-provider';
+import { ExpenseForm } from '@/components/forms/expense-form';
+import { IncomeForm } from '@/components/forms/income-form';
+import { LoanForm } from '@/components/forms/loan-form';
+import { ModalShell, useCloseModal } from '@/components/modal-shell';
+import { Segmented } from '@/components/ui/segmented';
 
-export default function AddChooser() {
-  const { tokens } = useTheme();
-  const router = useRouter();
+type EntryType = 'expense' | 'income' | 'loan';
 
-  const options = [
-    { key: 'income', label: 'আয়', sub: 'বেতন, ফ্রিল্যান্স, উপহার', icon: '↓', color: tokens.income, href: '/add-income' as const },
-    { key: 'expense', label: 'খরচ', sub: 'দৈনন্দিন খরচ যোগ করুন', icon: '↑', color: tokens.expense, href: '/add-expense' as const },
-    { key: 'loan', label: 'লোন', sub: 'ধার দেওয়া বা নেওয়া', icon: '⇄', color: tokens.lent, href: '/add-loan' as const },
-  ];
+const TYPE_OPTIONS: { value: EntryType; label: string }[] = [
+  { value: 'expense', label: 'খরচ' },
+  { value: 'income', label: 'আয়' },
+  { value: 'loan', label: 'লোন' },
+];
+
+/** New entry. The "+" button lands here with the expense form open — the most frequent entry. */
+export default function AddEntryScreen() {
+  const params = useLocalSearchParams<{ type?: string; direction?: string }>();
+  const close = useCloseModal();
+  const [type, setType] = useState<EntryType>(
+    params.type === 'income' || params.type === 'loan' ? params.type : 'expense',
+  );
 
   return (
     <ModalShell title="নতুন এন্ট্রি">
-      {options.map((opt) => (
-        <Pressable
-          key={opt.key}
-          onPress={() => router.replace(opt.href)}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 14,
-            backgroundColor: tokens.surface,
-            borderColor: tokens.line,
-            borderWidth: 1,
-            borderRadius: 16,
-            padding: 16,
-          }}>
-          <View
-            style={{
-              width: 46,
-              height: 46,
-              borderRadius: 14,
-              backgroundColor: withAlpha(opt.color, 0.12),
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-            <Text style={{ color: opt.color, fontSize: 20 }}>{opt.icon}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: tokens.ink }}>{opt.label}</Text>
-            <Text style={{ fontSize: 12, color: tokens.muted }}>{opt.sub}</Text>
-          </View>
-          <Text style={{ color: tokens.muted, fontSize: 18 }}>›</Text>
-        </Pressable>
-      ))}
+      <Segmented options={TYPE_OPTIONS} value={type} onChange={setType} accessibilityLabel="এন্ট্রির ধরন" />
+      {type === 'expense' ? <ExpenseForm key="expense" onDone={close} /> : null}
+      {type === 'income' ? <IncomeForm key="income" onDone={close} /> : null}
+      {type === 'loan' ? (
+        <LoanForm key="loan" initialDirection={params.direction === 'BORROWED' ? 'BORROWED' : 'LENT'} onDone={close} />
+      ) : null}
     </ModalShell>
   );
 }

@@ -1,15 +1,29 @@
 import '@/global.css';
 
+import {
+  HindSiliguri_400Regular,
+  HindSiliguri_500Medium,
+  HindSiliguri_600SemiBold,
+  HindSiliguri_700Bold,
+} from '@expo-google-fonts/hind-siliguri';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { DialogHost } from '@/components/ui/dialog-host';
+import { ToastHost } from '@/components/ui/toast-host';
 import { ThemeProvider } from '@/providers/theme-provider';
 import { useDataStore } from '@/stores/data';
 import { useSessionStore } from '@/stores/session';
 import { useSyncStore } from '@/stores/sync';
+
+// Keep the splash screen up until the app fonts are ready, so text never flashes in a fallback face.
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const queryClient = new QueryClient();
 
@@ -54,6 +68,22 @@ function AuthGate({ children }: { children: ReactNode }) {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    ...Ionicons.font,
+    HindSiliguri_400Regular,
+    HindSiliguri_500Medium,
+    HindSiliguri_600SemiBold,
+    HindSiliguri_700Bold,
+  });
+  // A font that fails to load falls back to the system face instead of blocking the app.
+  const ready = fontsLoaded || fontError != null;
+
+  useEffect(() => {
+    if (ready) SplashScreen.hideAsync().catch(() => {});
+  }, [ready]);
+
+  if (!ready) return null;
+
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
@@ -69,6 +99,8 @@ export default function RootLayout() {
               <Stack.Screen name="add-loan" options={{ presentation: 'modal' }} />
             </Stack>
           </AuthGate>
+          <ToastHost />
+          <DialogHost />
         </ThemeProvider>
       </QueryClientProvider>
     </SafeAreaProvider>

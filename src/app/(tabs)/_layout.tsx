@@ -1,20 +1,24 @@
 import { useRouter } from 'expo-router';
 import { TabList, TabSlot, TabTrigger, Tabs } from 'expo-router/ui';
 import { forwardRef } from 'react';
-import { Pressable, Text, View, type PressableProps } from 'react-native';
+import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Icon, type IconName } from '@/components/ui/icon';
+import { Pressable, type PressableProps } from '@/components/ui/pressable';
+import { Text } from '@/components/ui/text';
 import { useTheme } from '@/providers/theme-provider';
 
 type TabButtonProps = PressableProps & {
-  glyph: string;
+  icon: IconName;
+  activeIcon: IconName;
   label: string;
   isFocused?: boolean;
 };
 
 // Receives onPress/isFocused/style merged in from <TabTrigger asChild>.
 const TabButton = forwardRef<View, TabButtonProps>(function TabButton(
-  { glyph, label, isFocused, ...pressableProps },
+  { icon, activeIcon, label, isFocused, ...pressableProps },
   ref,
 ) {
   const { tokens } = useTheme();
@@ -23,9 +27,12 @@ const TabButton = forwardRef<View, TabButtonProps>(function TabButton(
     <Pressable
       ref={ref}
       {...pressableProps}
-      style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 6 }}>
-      <Text style={{ fontSize: 19, color }}>{glyph}</Text>
-      <Text style={{ fontSize: 10, fontWeight: '600', color }}>{label}</Text>
+      accessibilityRole="tab"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: !!isFocused }}
+      style={{ flex: 1, minHeight: 52, alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 6 }}>
+      <Icon name={isFocused ? activeIcon : icon} size={22} color={color} />
+      <Text style={{ fontSize: 12, fontWeight: isFocused ? '700' : '500', color }}>{label}</Text>
     </Pressable>
   );
 });
@@ -34,24 +41,27 @@ function Fab() {
   const { tokens } = useTheme();
   const router = useRouter();
   return (
-    <View style={{ width: 60, alignItems: 'center' }}>
+    <View style={{ width: 64, alignItems: 'center' }}>
       <Pressable
         onPress={() => router.push('/add')}
-        style={{
-          width: 54,
-          height: 54,
-          borderRadius: 17,
+        accessibilityRole="button"
+        accessibilityLabel="নতুন এন্ট্রি যোগ করুন"
+        style={({ pressed }) => ({
+          width: 56,
+          height: 56,
+          borderRadius: 18,
           marginTop: -26,
-          backgroundColor: tokens.primary,
+          backgroundColor: tokens.primaryFill,
           alignItems: 'center',
           justifyContent: 'center',
-          shadowColor: tokens.primary,
-          shadowOpacity: 0.5,
+          shadowColor: tokens.primaryFill,
+          shadowOpacity: 0.45,
           shadowRadius: 12,
           shadowOffset: { width: 0, height: 8 },
           elevation: 8,
-        }}>
-        <Text style={{ color: '#fff', fontSize: 30, fontWeight: '300', lineHeight: 34 }}>+</Text>
+          transform: [{ scale: pressed ? 0.95 : 1 }],
+        })}>
+        <Icon name="add" size={32} color={tokens.onFill} />
       </Pressable>
     </View>
   );
@@ -65,27 +75,28 @@ export default function TabsLayout() {
     <Tabs style={{ flex: 1, backgroundColor: tokens.bg }}>
       <TabSlot style={{ flex: 1 }} />
       <TabList
+        accessibilityRole="tablist"
         style={{
-          height: 66 + insets.bottom,
+          height: 68 + insets.bottom,
           paddingBottom: insets.bottom,
-          paddingHorizontal: 14,
+          paddingHorizontal: 12,
           backgroundColor: tokens.surface,
           borderTopColor: tokens.line,
           borderTopWidth: 1,
           alignItems: 'center',
         }}>
         <TabTrigger name="index" href="/" asChild>
-          <TabButton glyph="⌂" label="হোম" />
+          <TabButton icon="home-outline" activeIcon="home" label="হোম" />
         </TabTrigger>
         <TabTrigger name="loans" href="/loans" asChild>
-          <TabButton glyph="⇄" label="লোন" />
+          <TabButton icon="swap-horizontal-outline" activeIcon="swap-horizontal" label="লোন" />
         </TabTrigger>
         <Fab />
         <TabTrigger name="balance" href="/balance" asChild>
-          <TabButton glyph="◉" label="ব্যালেন্স" />
+          <TabButton icon="wallet-outline" activeIcon="wallet" label="ব্যালেন্স" />
         </TabTrigger>
         <TabTrigger name="report" href="/report" asChild>
-          <TabButton glyph="▤" label="রিপোর্ট" />
+          <TabButton icon="bar-chart-outline" activeIcon="bar-chart" label="রিপোর্ট" />
         </TabTrigger>
       </TabList>
     </Tabs>
