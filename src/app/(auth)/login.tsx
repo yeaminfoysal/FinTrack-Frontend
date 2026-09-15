@@ -1,14 +1,14 @@
 import { isAxiosError } from 'axios';
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { AuthShell } from '@/components/auth-shell';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Notice } from '@/components/ui/notice';
-import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
+import { textSize } from '@/constants/typography';
 import { useTheme } from '@/providers/theme-provider';
 import { useSessionStore } from '@/stores/session';
 
@@ -90,7 +90,7 @@ export default function LoginScreen() {
 
         <Link href="/forgot-password" asChild>
           <Pressable accessibilityRole="link" hitSlop={10} style={{ alignSelf: 'flex-end', paddingVertical: 4 }}>
-            <Text style={{ fontSize: 13.5, fontWeight: '600', color: tokens.primary }}>পাসওয়ার্ড ভুলে গেছেন?</Text>
+            <Text style={{ fontSize: textSize.md, fontWeight: '600', color: tokens.primary }}>পাসওয়ার্ড ভুলে গেছেন?</Text>
           </Pressable>
         </Link>
 
@@ -99,10 +99,10 @@ export default function LoginScreen() {
         {SHOW_DEMO ? <Button label="ডেমো হিসেবে চালিয়ে যান" variant="outline" onPress={() => void loginDemo()} /> : null}
 
         <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 8, gap: 5 }}>
-          <Text style={{ color: tokens.muted, fontSize: 14 }}>অ্যাকাউন্ট নেই?</Text>
+          <Text style={{ color: tokens.muted, fontSize: textSize.md }}>অ্যাকাউন্ট নেই?</Text>
           <Link href="/register" asChild>
             <Pressable accessibilityRole="link" hitSlop={10} style={{ paddingVertical: 4 }}>
-              <Text style={{ color: tokens.primary, fontSize: 14, fontWeight: '700' }}>রেজিস্টার করুন</Text>
+              <Text style={{ color: tokens.primary, fontSize: textSize.md, fontWeight: '700' }}>রেজিস্টার করুন</Text>
             </Pressable>
           </Link>
         </View>

@@ -57,7 +57,10 @@ export interface PracticalBalance {
   bank: number;
   mfs: number;
   amount: number; // cash + bank + mfs
+  /** When the user counted it. Money that moved before then is already inside the amount. */
+  countedAt: string;
   updatedAt: string;
+  syncStatus: SyncStatus;
 }
 
 export interface UserProfile {

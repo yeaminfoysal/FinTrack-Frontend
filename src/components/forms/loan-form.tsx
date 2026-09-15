@@ -7,6 +7,7 @@ import { DateField } from '@/components/ui/date-field';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Segmented } from '@/components/ui/segmented';
 import { Text } from '@/components/ui/text';
+import { textSize } from '@/constants/typography';
 import { dayKeyOf, dayKeyToIso, fullDateBn, todayKey } from '@/lib/date';
 import { amountInputFromPaisa, formatTaka, toPaisa } from '@/lib/money';
 import type { Loan, LoanDirection } from '@/lib/types';
@@ -120,7 +121,7 @@ export function LoanForm({ existing, initialDirection = 'LENT', onDone }: LoanFo
       <View style={{ gap: 7 }}>
         <FieldLabel>ধরন</FieldLabel>
         <Segmented options={DIRECTION_OPTIONS} value={direction} onChange={setDirection} accessibilityLabel="লোনের ধরন" />
-        <Text style={{ fontSize: 12.5, lineHeight: 18, color: tokens.muted, marginLeft: 2 }}>
+        <Text style={{ fontSize: textSize.sm, lineHeight: 18, color: tokens.muted, marginLeft: 2 }}>
           {lent
             ? 'আপনি কাউকে টাকা দিয়েছেন — সে আপনাকে ফেরত দেবে (পাওনা)।'
             : 'আপনি কারো থেকে টাকা নিয়েছেন — আপনাকে ফেরত দিতে হবে (দেনা)। এটা আয় নয়।'}
@@ -151,7 +152,7 @@ export function LoanForm({ existing, initialDirection = 'LENT', onDone }: LoanFo
       <DateField value={day} onChange={setDay} />
       <Field label="নোট (ঐচ্ছিক)" value={note} onChangeText={setNote} placeholder="যেমন: জরুরি দরকারে" multiline maxLength={500} />
       {settled && existing?.settledDate ? (
-        <Text style={{ fontSize: 13, color: tokens.muted, marginLeft: 2 }}>
+        <Text style={{ fontSize: textSize.sm, color: tokens.muted, marginLeft: 2 }}>
           {existing.direction === 'LENT' ? 'ফেরত পাওয়া গেছে' : 'শোধ করা হয়েছে'} · {fullDateBn(existing.settledDate)}
         </Text>
       ) : null}

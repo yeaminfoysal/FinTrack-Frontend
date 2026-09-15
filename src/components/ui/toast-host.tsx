@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/ui/icon';
-import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
+import { textSize } from '@/constants/typography';
 import { useTheme } from '@/providers/theme-provider';
 import { useUiStore } from '@/stores/ui';
 
@@ -48,7 +48,7 @@ export function ToastHost() {
           elevation: 8,
         }}>
         <Icon name={toast.tone === 'error' ? 'alert-circle-outline' : 'checkmark-circle'} size={20} color={tokens.bg} />
-        <Text style={{ flex: 1, fontSize: 14, lineHeight: 20, color: tokens.bg }}>{toast.message}</Text>
+        <Text style={{ flex: 1, fontSize: textSize.md, lineHeight: 20, color: tokens.bg }}>{toast.message}</Text>
         {toast.actionLabel ? (
           <Pressable
             onPress={() => {
@@ -64,7 +64,7 @@ export function ToastHost() {
               borderRadius: 10,
               backgroundColor: pressed ? 'rgba(127,127,127,0.25)' : 'transparent',
             })}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: tokens.bg, textDecorationLine: 'underline' }}>
+            <Text style={{ fontSize: textSize.md, fontWeight: '700', color: tokens.bg, textDecorationLine: 'underline' }}>
               {toast.actionLabel}
             </Text>
           </Pressable>

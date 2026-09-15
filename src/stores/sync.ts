@@ -6,18 +6,29 @@
 import { isAxiosError } from 'axios';
 import { create } from 'zustand';
 
-import { SyncApi, UsersApi } from '@/lib/api/endpoints';
+import { SyncApi, UsersApi, type OutgoingRecord } from '@/lib/api/endpoints';
 import { getDb } from '@/lib/db';
 import {
   getMeta,
   getPendingRecords,
+  getPracticalVersion,
+  getRecordVersion,
+  getSummaryVersion,
   markAsSynced,
   setMeta,
+  toExpense,
+  toIncome,
+  toLoan,
+  toPractical,
+  toSummary,
   upsertExpense,
   upsertIncome,
   upsertLoan,
+  upsertPractical,
   upsertSummary,
 } from '@/lib/db/repo';
+import { shouldApplyIncoming } from '@/lib/records';
+import type { MonthlySummary, PracticalBalance, SyncStatus } from '@/lib/types';
 import { DEMO_OWNER, useDataStore } from '@/stores/data';
 
 export type SyncPhase = 'idle' | 'syncing' | 'offline' | 'error';
@@ -34,7 +45,11 @@ interface SyncState {
   syncNow: () => Promise<void>;
 }
 
-/** Pull cursor. Only a successful pull may move it, otherwise changes from other devices get skipped. */
+/**
+ * Pull cursor: the server's clock at the last successful pull. The server filters on its
+ * own write time, so device clocks never decide what is pulled. Only a pull may move it,
+ * otherwise changes from other devices get skipped.
+ */
 const PULL_CURSOR_KEY = 'lastSyncTime';
 const LAST_SYNCED_KEY = 'lastSyncedAt';
 
@@ -82,6 +97,40 @@ async function pushProfileIfDirty(): Promise<void> {
   markProfileSynced();
 }
 
+type Versioned = { syncStatus: SyncStatus; updatedAt: string };
+
+const byId = (row: { id: string }) => row.id;
+const byMonthKey = (row: PracticalBalance) => row.monthKey;
+const byYearMonth = (row: MonthlySummary) => `${row.year}-${row.month}`;
+const newestDateFirst = (a: { date: string }, b: { date: string }) => b.date.localeCompare(a.date);
+const newestMonthFirst = (a: MonthlySummary, b: MonthlySummary) => b.year * 100 + b.month - (a.year * 100 + a.month);
+const practicalsByMonth = (rows: PracticalBalance[]) => Object.fromEntries(rows.map((p) => [p.monthKey, p]));
+
+/** Drops syncStatus and null fields; the backend DTOs reject both. */
+function toOutgoing<T extends object>(record: T): OutgoingRecord<T> {
+  const clean: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (key === 'syncStatus' || value === null || value === undefined) continue;
+    clean[key] = value;
+  }
+  return clean as OutgoingRecord<T>;
+}
+
+/** Web fallback of the pull merge: server rows replace local ones by key, Last-Write-Wins. */
+function mergeRows<T extends Versioned>(local: T[], incoming: T[], keyOf: (row: T) => string): T[] {
+  const rows = new Map(local.map((row) => [keyOf(row), row]));
+  for (const row of incoming) {
+    if (shouldApplyIncoming(rows.get(keyOf(row)), row)) rows.set(keyOf(row), { ...row, syncStatus: 'SYNCED' });
+  }
+  return [...rows.values()];
+}
+
+/** Web fallback of markAsSynced: only rows still at the version that was sent. */
+function markSent<T extends Versioned>(rows: T[], sent: T[], keyOf: (row: T) => string): T[] {
+  const sentAt = new Map(sent.map((row) => [keyOf(row), row.updatedAt]));
+  return rows.map((row) => (sentAt.get(keyOf(row)) === row.updatedAt ? { ...row, syncStatus: 'SYNCED' } : row));
+}
+
 export const useSyncStore = create<SyncState>((set, get) => ({
   isSyncing: false,
   status: 'idle',
@@ -101,35 +150,52 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       const since = readValue(PULL_CURSOR_KEY) ?? undefined;
       console.log('[sync] pull starting, since:', since ?? '(full pull)');
       const response = await SyncApi.pull(since);
+      // The row mappers give server rows the local shape (dropping userId, serverUpdatedAt).
+      const incoming = {
+        incomes: (response.incomes ?? []).map(toIncome),
+        expenses: (response.expenses ?? []).map(toExpense),
+        loans: (response.loans ?? []).map(toLoan),
+        summaries: (response.monthlySummaries ?? []).map(toSummary),
+        practicals: (response.practicalBalances ?? []).map(toPractical),
+      };
       console.log('[sync] pull response:', {
-        incomes: response.incomes?.length ?? 0,
-        expenses: response.expenses?.length ?? 0,
-        loans: response.loans?.length ?? 0,
-        summaries: response.monthlySummaries?.length ?? 0,
+        incomes: incoming.incomes.length,
+        expenses: incoming.expenses.length,
+        loans: incoming.loans.length,
+        summaries: incoming.summaries.length,
+        practicals: incoming.practicals.length,
         serverTime: response.serverTime,
       });
 
+      // Last-Write-Wins: a server row replaces the local one unless that holds an unsent change at least as new.
       if (db) {
         db.withTransactionSync(() => {
-          (response.incomes ?? []).forEach((i: any) => upsertIncome(db, { ...i, syncStatus: 'SYNCED' }));
-          (response.expenses ?? []).forEach((e: any) => upsertExpense(db, { ...e, syncStatus: 'SYNCED' }));
-          (response.loans ?? []).forEach((l: any) => upsertLoan(db, { ...l, syncStatus: 'SYNCED' }));
-          (response.monthlySummaries ?? []).forEach((s: any) => upsertSummary(db, { ...s, syncStatus: 'SYNCED' }));
+          for (const r of incoming.incomes) {
+            if (shouldApplyIncoming(getRecordVersion(db, 'income', r.id), r)) upsertIncome(db, { ...r, syncStatus: 'SYNCED' });
+          }
+          for (const r of incoming.expenses) {
+            if (shouldApplyIncoming(getRecordVersion(db, 'expense', r.id), r)) upsertExpense(db, { ...r, syncStatus: 'SYNCED' });
+          }
+          for (const r of incoming.loans) {
+            if (shouldApplyIncoming(getRecordVersion(db, 'loan', r.id), r)) upsertLoan(db, { ...r, syncStatus: 'SYNCED' });
+          }
+          for (const r of incoming.summaries) {
+            if (shouldApplyIncoming(getSummaryVersion(db, r.year, r.month), r)) upsertSummary(db, { ...r, syncStatus: 'SYNCED' });
+          }
+          for (const r of incoming.practicals) {
+            if (shouldApplyIncoming(getPracticalVersion(db, r.monthKey), r)) upsertPractical(db, { ...r, syncStatus: 'SYNCED' });
+          }
         });
         useDataStore.getState().reloadFromDb();
       } else {
         // Web fallback: merge into Zustand state directly
         const s = useDataStore.getState();
-        const merge = (existing: any[], incoming: any[]) => {
-          const map = new Map(existing.map((e) => [e.id, e]));
-          (incoming ?? []).forEach((item) => map.set(item.id, { ...item, syncStatus: 'SYNCED' }));
-          return Array.from(map.values()).sort((a: any, b: any) => (b.date ?? '').localeCompare(a.date ?? '') || 0);
-        };
         useDataStore.setState({
-          incomes: merge(s.incomes, response.incomes),
-          expenses: merge(s.expenses, response.expenses),
-          loans: merge(s.loans, response.loans),
-          summaries: merge(s.summaries, response.monthlySummaries),
+          incomes: mergeRows(s.incomes, incoming.incomes, byId).sort(newestDateFirst),
+          expenses: mergeRows(s.expenses, incoming.expenses, byId).sort(newestDateFirst),
+          loans: mergeRows(s.loans, incoming.loans, byId).sort(newestDateFirst),
+          summaries: mergeRows(s.summaries, incoming.summaries, byYearMonth).sort(newestMonthFirst),
+          practicals: practicalsByMonth(mergeRows(Object.values(s.practicals), incoming.practicals, byMonthKey)),
         });
       }
       writeValue(PULL_CURSOR_KEY, response.serverTime);
@@ -178,21 +244,18 @@ export const useSyncStore = create<SyncState>((set, get) => ({
     }
     const db = getDb();
     const s = useDataStore.getState();
+    const isPending = (row: Versioned) => row.syncStatus === 'PENDING';
     const pending = db
       ? getPendingRecords(db)
       : {
-          incomes: s.incomes.filter((i) => i.syncStatus === 'PENDING'),
-          expenses: s.expenses.filter((e) => e.syncStatus === 'PENDING'),
-          loans: s.loans.filter((l) => l.syncStatus === 'PENDING'),
-          monthlySummaries: s.summaries.filter((m) => m.syncStatus === 'PENDING'),
+          incomes: s.incomes.filter(isPending),
+          expenses: s.expenses.filter(isPending),
+          loans: s.loans.filter(isPending),
+          monthlySummaries: s.summaries.filter(isPending),
+          practicalBalances: Object.values(s.practicals).filter(isPending),
         };
 
-    if (
-      pending.incomes.length === 0 &&
-      pending.expenses.length === 0 &&
-      pending.loans.length === 0 &&
-      pending.monthlySummaries.length === 0
-    ) {
+    if (Object.values(pending).every((rows) => rows.length === 0)) {
       return; // Nothing to push
     }
 
@@ -204,54 +267,36 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         expenses: pending.expenses.length,
         loans: pending.loans.length,
         summaries: pending.monthlySummaries.length,
+        practicals: pending.practicalBalances.length,
       });
 
-      /** Strip syncStatus and null values; backend rejects both. */
-      const strip = (record: any) => {
-        const clean: any = {};
-        for (const [k, v] of Object.entries(record)) {
-          if (k === 'syncStatus') continue;
-          if (v === null || v === undefined) continue;
-          clean[k] = v;
-        }
-        return clean;
-      };
-
-      const payload = {
-        incomes: pending.incomes.map(strip),
-        expenses: pending.expenses.map(strip),
-        loans: pending.loans.map(strip),
-        monthlySummaries: pending.monthlySummaries.map(strip),
-      };
-
-      const response = await SyncApi.push(payload);
+      const response = await SyncApi.push({
+        incomes: pending.incomes.map(toOutgoing),
+        expenses: pending.expenses.map(toOutgoing),
+        loans: pending.loans.map(toOutgoing),
+        monthlySummaries: pending.monthlySummaries.map(toOutgoing),
+        practicalBalances: pending.practicalBalances.map(toOutgoing),
+      });
       console.log('[sync] push success:', response);
 
-      const idsToMark = {
-        incomes: new Set(pending.incomes.map((i) => i.id)),
-        expenses: new Set(pending.expenses.map((e) => e.id)),
-        loans: new Set(pending.loans.map((l) => l.id)),
-        summaries: new Set(pending.monthlySummaries.map((m) => m.id)),
-      };
-
+      // Rows edited while the push was in flight have a newer updatedAt and stay PENDING.
       if (db) {
         markAsSynced(db, {
-          incomes: Array.from(idsToMark.incomes),
-          expenses: Array.from(idsToMark.expenses),
-          loans: Array.from(idsToMark.loans),
-          summaries: Array.from(idsToMark.summaries),
+          incomes: pending.incomes,
+          expenses: pending.expenses,
+          loans: pending.loans,
+          summaries: pending.monthlySummaries,
+          practicals: pending.practicalBalances,
         });
         useDataStore.getState().reloadFromDb();
       } else {
         const latest = useDataStore.getState();
-        const mark = (arr: any[], ids: Set<string>) =>
-          arr.map((item) => (ids.has(item.id) ? { ...item, syncStatus: 'SYNCED' } : item));
-
         useDataStore.setState({
-          incomes: mark(latest.incomes, idsToMark.incomes),
-          expenses: mark(latest.expenses, idsToMark.expenses),
-          loans: mark(latest.loans, idsToMark.loans),
-          summaries: mark(latest.summaries, idsToMark.summaries),
+          incomes: markSent(latest.incomes, pending.incomes, byId),
+          expenses: markSent(latest.expenses, pending.expenses, byId),
+          loans: markSent(latest.loans, pending.loans, byId),
+          summaries: markSent(latest.summaries, pending.monthlySummaries, byId),
+          practicals: practicalsByMonth(markSent(Object.values(latest.practicals), pending.practicalBalances, byMonthKey)),
         });
       }
 

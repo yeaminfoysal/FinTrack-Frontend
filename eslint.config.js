@@ -8,9 +8,8 @@ module.exports = defineConfig([
     ignores: ["dist/*"],
   },
   {
-    // React Native's Pressable loses function styles under NativeWind on devices (web is
-    // fine), and Text must render in the app font — use the wrappers in src/components/ui.
-    ignores: ["src/components/ui/pressable.tsx", "src/components/ui/text.tsx"],
+    // Text must render in the app font (Hind Siliguri, picked by fontWeight) — use the wrapper.
+    ignores: ["src/components/ui/text.tsx"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -18,8 +17,8 @@ module.exports = defineConfig([
           paths: [
             {
               name: "react-native",
-              importNames: ["Pressable", "Text"],
-              message: "Import Pressable from '@/components/ui/pressable' and Text from '@/components/ui/text'.",
+              importNames: ["Text"],
+              message: "Import Text from '@/components/ui/text'.",
             },
           ],
         },

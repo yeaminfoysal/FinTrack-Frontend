@@ -94,6 +94,20 @@ export function monthName(month: number): string {
   return BN_MONTHS[month - 1] ?? '';
 }
 
+const BN_MONTHS_SHORT = ['জানু', 'ফেব্রু', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টে', 'অক্টো', 'নভে', 'ডিসে'];
+
+/** Short month name for chart labels: "সেপ্টে". */
+export function monthShortBn(key: MonthKey): string {
+  return BN_MONTHS_SHORT[parseMonthKey(key).month - 1] ?? '';
+}
+
+/** The `count` months that end with `end`, oldest first. */
+export function monthsEndingAt(end: MonthKey, count: number): MonthKey[] {
+  const keys = [end];
+  while (keys.length < count) keys.unshift(prevMonthKey(keys[0]));
+  return keys;
+}
+
 /** Local calendar day "YYYY-MM-DD" of a Date. */
 export function dayKeyOfDate(date: Date): DayKey {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;

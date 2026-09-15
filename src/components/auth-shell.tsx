@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
 import { Text } from '@/components/ui/text';
+import { textSize } from '@/constants/typography';
 import { useTheme } from '@/providers/theme-provider';
 
 export function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
@@ -27,12 +28,12 @@ export function AuthShell({ title, subtitle, children }: { title: string; subtit
                   justifyContent: 'center',
                   marginBottom: 14,
                 }}>
-                <Text style={{ color: tokens.onFill, fontSize: 30, fontWeight: '700' }}>৳</Text>
+                <Text style={{ color: tokens.onFill, fontSize: textSize.display, fontWeight: '700' }}>৳</Text>
               </View>
-              <Text accessibilityRole="header" style={{ fontSize: 25, fontWeight: '700', color: tokens.ink }}>
+              <Text accessibilityRole="header" style={{ fontSize: textSize.xl, fontWeight: '700', color: tokens.ink }}>
                 {title}
               </Text>
-              <Text style={{ fontSize: 14, lineHeight: 21, color: tokens.muted, marginTop: 6, textAlign: 'center' }}>
+              <Text style={{ fontSize: textSize.md, lineHeight: 21, color: tokens.muted, marginTop: 6, textAlign: 'center' }}>
                 {subtitle}
               </Text>
             </View>

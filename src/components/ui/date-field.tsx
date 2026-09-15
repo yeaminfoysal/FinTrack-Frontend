@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { Modal, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, View } from 'react-native';
 
+import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { IconButton } from '@/components/ui/icon-button';
-import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { withAlpha } from '@/constants/tokens';
+import { textSize } from '@/constants/typography';
 import {
   BN_WEEKDAYS_SHORT,
   dayKeyToIso,
@@ -44,7 +44,7 @@ export function DateField({ value, onChange, label = 'তারিখ' }: DateFi
 
   return (
     <View style={{ gap: 7 }}>
-      <Text style={{ fontSize: 13, fontWeight: '600', color: tokens.muted, marginLeft: 2 }}>{label}</Text>
+      <Text style={{ fontSize: textSize.sm, fontWeight: '600', color: tokens.muted, marginLeft: 2 }}>{label}</Text>
       <View accessibilityRole="radiogroup" accessibilityLabel={label} style={{ flexDirection: 'row', gap: 8 }}>
         <DayChip label="আজ" selected={value === today} onPress={() => onChange(today)} />
         <DayChip label="গতকাল" selected={value === yesterday} onPress={() => onChange(yesterday)} />
@@ -56,7 +56,7 @@ export function DateField({ value, onChange, label = 'তারিখ' }: DateFi
           onPress={() => setCalendarOpen(true)}
         />
       </View>
-      <Text style={{ fontSize: 12.5, color: tokens.muted, marginLeft: 2 }}>
+      <Text style={{ fontSize: textSize.sm, color: tokens.muted, marginLeft: 2 }}>
         {fullDateBn(iso)} · {weekdayBn(iso)}
       </Text>
       <CalendarSheet
@@ -109,7 +109,7 @@ function DayChip({
         opacity: pressed ? 0.8 : 1,
       })}>
       {icon ? <Icon name={icon} size={16} color={selected ? tokens.primary : tokens.muted} /> : null}
-      <Text numberOfLines={1} style={{ fontSize: 13.5, fontWeight: '600', color: selected ? tokens.primary : tokens.ink }}>
+      <Text numberOfLines={1} style={{ fontSize: textSize.md, fontWeight: '600', color: selected ? tokens.primary : tokens.ink }}>
         {label}
       </Text>
     </Pressable>
@@ -132,7 +132,6 @@ function CalendarSheet({
   onSelect: (day: DayKey) => void;
 }) {
   const { tokens } = useTheme();
-  const insets = useSafeAreaInsets();
   const [month, setMonth] = useState<MonthKey>(value.slice(0, 7));
   // Each time the sheet opens, start at the month of the selected day.
   const [wasVisible, setWasVisible] = useState(visible);
@@ -151,89 +150,70 @@ function CalendarSheet({
   const weeks = Array.from({ length: cells.length / 7 }, (_, w) => cells.slice(w * 7, w * 7 + 7));
 
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onClose}>
-      <Pressable onPress={onClose} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' }}>
-        {/* Inner Pressable swallows taps so only the backdrop closes the sheet. */}
-        <Pressable
-          onPress={() => {}}
-          accessibilityViewIsModal
-          style={{
-            width: '100%',
-            maxWidth: 520,
-            alignSelf: 'center',
-            gap: 8,
-            backgroundColor: tokens.bg,
-            borderTopLeftRadius: 22,
-            borderTopRightRadius: 22,
-            paddingTop: 16,
-            paddingHorizontal: 16,
-            paddingBottom: 16 + insets.bottom,
-          }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <IconButton icon="chevron-back" label="আগের মাস" onPress={() => setMonth(prevMonthKey(month))} />
-            <Text accessibilityRole="header" style={{ fontSize: 16, fontWeight: '700', color: tokens.ink }}>
-              {monthLabelBn(month)}
-            </Text>
-            <IconButton
-              icon="chevron-forward"
-              label="পরের মাস"
-              disabled={month >= maxDay.slice(0, 7)}
-              onPress={() => setMonth(nextMonthKey(month))}
-            />
-          </View>
-          <View style={{ flexDirection: 'row' }}>
-            {BN_WEEKDAYS_SHORT.map((name) => (
-              <Text key={name} style={{ flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: tokens.muted }}>
-                {name}
-              </Text>
-            ))}
-          </View>
-          {weeks.map((week, w) => (
-            <View key={w} style={{ flexDirection: 'row' }}>
-              {week.map((dayNumber, i) => {
-                if (dayNumber == null) return <View key={i} style={{ flex: 1, height: 44 }} />;
-                const day = `${month}-${pad2(dayNumber)}`;
-                const disabled = day > maxDay;
-                const selected = day === value;
-                const isToday = day === maxDay;
-                return (
-                  <Pressable
-                    key={i}
-                    onPress={() => onSelect(day)}
-                    disabled={disabled}
-                    accessibilityRole="button"
-                    accessibilityLabel={fullDateBn(dayKeyToIso(day))}
-                    accessibilityState={{ selected, disabled }}
-                    style={{ flex: 1, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-                    <View
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: 19,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundColor: selected ? tokens.primaryFill : 'transparent',
-                        borderWidth: isToday && !selected ? 1 : 0,
-                        borderColor: tokens.primary,
-                      }}>
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          fontWeight: selected || isToday ? '700' : '400',
-                          color: selected ? tokens.onFill : disabled ? tokens.muted : tokens.ink,
-                          opacity: disabled ? 0.45 : 1,
-                        }}>
-                        {localDigits(dayNumber)}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ))}
-          <Button label="বাতিল" variant="secondary" onPress={onClose} style={{ marginTop: 4 }} />
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <BottomSheet visible={visible} onClose={onClose} gap={8}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <IconButton icon="chevron-back" label="আগের মাস" onPress={() => setMonth(prevMonthKey(month))} />
+        <Text accessibilityRole="header" style={{ fontSize: textSize.lg, fontWeight: '700', color: tokens.ink }}>
+          {monthLabelBn(month)}
+        </Text>
+        <IconButton
+          icon="chevron-forward"
+          label="পরের মাস"
+          disabled={month >= maxDay.slice(0, 7)}
+          onPress={() => setMonth(nextMonthKey(month))}
+        />
+      </View>
+      <View style={{ flexDirection: 'row' }}>
+        {BN_WEEKDAYS_SHORT.map((name) => (
+          <Text key={name} style={{ flex: 1, textAlign: 'center', fontSize: textSize.xs, fontWeight: '600', color: tokens.muted }}>
+            {name}
+          </Text>
+        ))}
+      </View>
+      {weeks.map((week, w) => (
+        <View key={w} style={{ flexDirection: 'row' }}>
+          {week.map((dayNumber, i) => {
+            if (dayNumber == null) return <View key={i} style={{ flex: 1, height: 44 }} />;
+            const day = `${month}-${pad2(dayNumber)}`;
+            const disabled = day > maxDay;
+            const selected = day === value;
+            const isToday = day === maxDay;
+            return (
+              <Pressable
+                key={i}
+                onPress={() => onSelect(day)}
+                disabled={disabled}
+                accessibilityRole="button"
+                accessibilityLabel={fullDateBn(dayKeyToIso(day))}
+                accessibilityState={{ selected, disabled }}
+                style={{ flex: 1, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+                <View
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: selected ? tokens.primaryFill : 'transparent',
+                    borderWidth: isToday && !selected ? 1 : 0,
+                    borderColor: tokens.primary,
+                  }}>
+                  <Text
+                    style={{
+                      fontSize: textSize.md,
+                      fontWeight: selected || isToday ? '700' : '400',
+                      color: selected ? tokens.onFill : disabled ? tokens.muted : tokens.ink,
+                      opacity: disabled ? 0.45 : 1,
+                    }}>
+                    {localDigits(dayNumber)}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      ))}
+      <Button label="বাতিল" variant="secondary" onPress={onClose} style={{ marginTop: 4 }} />
+    </BottomSheet>
   );
 }

@@ -10,6 +10,7 @@ import {
 import { IconButton } from '@/components/ui/icon-button';
 import { Text } from '@/components/ui/text';
 import { FONT_FAMILY } from '@/constants/fonts';
+import { textSize } from '@/constants/typography';
 import { useTheme } from '@/providers/theme-provider';
 
 interface FieldProps {
@@ -76,7 +77,7 @@ export function Field({
           paddingLeft: 14,
           paddingRight: secureTextEntry ? 4 : 14,
         }}>
-        {prefix ? <Text style={{ fontSize: 18, color: tokens.primary }}>{prefix}</Text> : null}
+        {prefix ? <Text style={{ fontSize: textSize.xl, color: tokens.primary }}>{prefix}</Text> : null}
         <TextInput
           value={value}
           onChangeText={onChangeText}
@@ -99,7 +100,7 @@ export function Field({
             flex: 1,
             minWidth: 0,
             color: tokens.ink,
-            fontSize: 15,
+            fontSize: textSize.lg,
             fontFamily: FONT_FAMILY.regular,
             paddingVertical: 12,
             minHeight: multiline ? 76 : 48,
@@ -117,11 +118,11 @@ export function Field({
         ) : null}
       </View>
       {error ? (
-        <Text accessibilityLiveRegion="polite" style={{ fontSize: 12.5, lineHeight: 18, color: tokens.expense, marginLeft: 2 }}>
+        <Text accessibilityLiveRegion="polite" style={{ fontSize: textSize.sm, lineHeight: 18, color: tokens.expense, marginLeft: 2 }}>
           {error}
         </Text>
       ) : hint ? (
-        <Text style={{ fontSize: 12.5, lineHeight: 18, color: tokens.muted, marginLeft: 2 }}>{hint}</Text>
+        <Text style={{ fontSize: textSize.sm, lineHeight: 18, color: tokens.muted, marginLeft: 2 }}>{hint}</Text>
       ) : null}
     </View>
   );
@@ -130,5 +131,5 @@ export function Field({
 /** Label for a form control that isn't a Field (chips, segmented controls, dates). */
 export function FieldLabel({ children }: { children: ReactNode }) {
   const { tokens } = useTheme();
-  return <Text style={{ fontSize: 13, fontWeight: '600', color: tokens.muted, marginLeft: 2 }}>{children}</Text>;
+  return <Text style={{ fontSize: textSize.sm, fontWeight: '600', color: tokens.muted, marginLeft: 2 }}>{children}</Text>;
 }

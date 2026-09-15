@@ -7,13 +7,17 @@ import type {
   Loan,
   MonthlySummary,
   PracticalBalance,
+  SyncStatus,
 } from '@/lib/types';
 
 type Row = Record<string, unknown>;
 
 const b = (v: unknown) => Number(v) === 1;
 
-function toIncome(r: Row): Income {
+// Row mappers. A sync pull runs server records through them too, which drops
+// server-only fields (userId, serverUpdatedAt) and normalizes the types.
+
+export function toIncome(r: Row): Income {
   return {
     id: String(r.id),
     amount: Number(r.amount),
@@ -28,7 +32,7 @@ function toIncome(r: Row): Income {
   };
 }
 
-function toExpense(r: Row): Expense {
+export function toExpense(r: Row): Expense {
   return {
     id: String(r.id),
     amount: Number(r.amount),
@@ -43,7 +47,7 @@ function toExpense(r: Row): Expense {
   };
 }
 
-function toLoan(r: Row): Loan {
+export function toLoan(r: Row): Loan {
   return {
     id: String(r.id),
     direction: r.direction as Loan['direction'],
@@ -61,7 +65,7 @@ function toLoan(r: Row): Loan {
   };
 }
 
-function toSummary(r: Row): MonthlySummary {
+export function toSummary(r: Row): MonthlySummary {
   return {
     id: String(r.id),
     year: Number(r.year),
@@ -83,6 +87,20 @@ function toSummary(r: Row): MonthlySummary {
   };
 }
 
+export function toPractical(r: Row): PracticalBalance {
+  return {
+    monthKey: String(r.monthKey),
+    cash: Number(r.cash),
+    bank: Number(r.bank),
+    mfs: Number(r.mfs),
+    amount: Number(r.amount),
+    // Saved before countedAt existed: updatedAt is the closest known count time.
+    countedAt: String(r.countedAt ?? r.updatedAt),
+    updatedAt: String(r.updatedAt),
+    syncStatus: (r.syncStatus as SyncStatus | undefined) ?? 'PENDING',
+  };
+}
+
 // ---- reads ----
 export function getIncomes(db: SQLiteDatabase): Income[] {
   return db.getAllSync<Row>('SELECT * FROM income ORDER BY date DESC').map(toIncome);
@@ -99,14 +117,7 @@ export function getSummaries(db: SQLiteDatabase): MonthlySummary[] {
     .map(toSummary);
 }
 export function getPracticals(db: SQLiteDatabase): PracticalBalance[] {
-  return db.getAllSync<Row>('SELECT * FROM practical_balance').map((r) => ({
-    monthKey: String(r.monthKey),
-    cash: Number(r.cash),
-    bank: Number(r.bank),
-    mfs: Number(r.mfs),
-    amount: Number(r.amount),
-    updatedAt: String(r.updatedAt),
-  }));
+  return db.getAllSync<Row>('SELECT * FROM practical_balance').map(toPractical);
 }
 
 export function getPendingRecords(db: SQLiteDatabase) {
@@ -115,26 +126,79 @@ export function getPendingRecords(db: SQLiteDatabase) {
     expenses: db.getAllSync<Row>("SELECT * FROM expense WHERE syncStatus = 'PENDING'").map(toExpense),
     loans: db.getAllSync<Row>("SELECT * FROM loan WHERE syncStatus = 'PENDING'").map(toLoan),
     monthlySummaries: db.getAllSync<Row>("SELECT * FROM monthly_summary WHERE syncStatus = 'PENDING'").map(toSummary),
+    practicalBalances: db
+      .getAllSync<Row>("SELECT * FROM practical_balance WHERE syncStatus = 'PENDING'")
+      .map(toPractical),
   };
 }
 
+/** A stored row's version, for the Last-Write-Wins merge of a pull. */
+export type StoredVersion = { syncStatus: SyncStatus; updatedAt: string } | null;
+
+export function getRecordVersion(
+  db: SQLiteDatabase,
+  table: 'income' | 'expense' | 'loan',
+  id: string,
+): StoredVersion {
+  return db.getFirstSync<{ syncStatus: SyncStatus; updatedAt: string }>(
+    `SELECT syncStatus, updatedAt FROM ${table} WHERE id = ?`,
+    [id],
+  );
+}
+
+export function getSummaryVersion(db: SQLiteDatabase, year: number, month: number): StoredVersion {
+  return db.getFirstSync<{ syncStatus: SyncStatus; updatedAt: string }>(
+    'SELECT syncStatus, updatedAt FROM monthly_summary WHERE year = ? AND month = ?',
+    [year, month],
+  );
+}
+
+export function getPracticalVersion(db: SQLiteDatabase, monthKey: string): StoredVersion {
+  return db.getFirstSync<{ syncStatus: SyncStatus; updatedAt: string }>(
+    'SELECT syncStatus, updatedAt FROM practical_balance WHERE monthKey = ?',
+    [monthKey],
+  );
+}
+
+/** A record or practical balance as it went out in a push. */
+export interface SentRecord {
+  id: string;
+  updatedAt: string;
+}
+export interface SentPractical {
+  monthKey: string;
+  updatedAt: string;
+}
+
+/**
+ * Marks pushed rows SYNCED — only where updatedAt still matches what was sent, so a
+ * row edited while the push was in flight stays PENDING for the next push.
+ */
 export function markAsSynced(
   db: SQLiteDatabase,
-  ids: { incomes: string[]; expenses: string[]; loans: string[]; summaries: string[] },
+  sent: {
+    incomes: SentRecord[];
+    expenses: SentRecord[];
+    loans: SentRecord[];
+    summaries: SentRecord[];
+    practicals: SentPractical[];
+  },
 ) {
   db.withTransactionSync(() => {
-    const bindIds = (arr: string[]) => arr.map(() => '?').join(',');
-    if (ids.incomes.length > 0) {
-      db.runSync(`UPDATE income SET syncStatus = 'SYNCED' WHERE id IN (${bindIds(ids.incomes)})`, ids.incomes);
-    }
-    if (ids.expenses.length > 0) {
-      db.runSync(`UPDATE expense SET syncStatus = 'SYNCED' WHERE id IN (${bindIds(ids.expenses)})`, ids.expenses);
-    }
-    if (ids.loans.length > 0) {
-      db.runSync(`UPDATE loan SET syncStatus = 'SYNCED' WHERE id IN (${bindIds(ids.loans)})`, ids.loans);
-    }
-    if (ids.summaries.length > 0) {
-      db.runSync(`UPDATE monthly_summary SET syncStatus = 'SYNCED' WHERE id IN (${bindIds(ids.summaries)})`, ids.summaries);
+    const mark = (table: 'income' | 'expense' | 'loan' | 'monthly_summary', rows: SentRecord[]) => {
+      for (const row of rows) {
+        db.runSync(`UPDATE ${table} SET syncStatus = 'SYNCED' WHERE id = ? AND updatedAt = ?`, [row.id, row.updatedAt]);
+      }
+    };
+    mark('income', sent.incomes);
+    mark('expense', sent.expenses);
+    mark('loan', sent.loans);
+    mark('monthly_summary', sent.summaries);
+    for (const row of sent.practicals) {
+      db.runSync("UPDATE practical_balance SET syncStatus = 'SYNCED' WHERE monthKey = ? AND updatedAt = ?", [
+        row.monthKey,
+        row.updatedAt,
+      ]);
     }
   });
 }
@@ -179,9 +243,9 @@ export function upsertSummary(db: SQLiteDatabase, s: MonthlySummary): void {
 }
 export function upsertPractical(db: SQLiteDatabase, p: PracticalBalance): void {
   db.runSync(
-    `INSERT OR REPLACE INTO practical_balance (monthKey,cash,bank,mfs,amount,updatedAt)
-     VALUES (?,?,?,?,?,?)`,
-    [p.monthKey, p.cash, p.bank, p.mfs, p.amount, p.updatedAt],
+    `INSERT OR REPLACE INTO practical_balance (monthKey,cash,bank,mfs,amount,countedAt,updatedAt,syncStatus)
+     VALUES (?,?,?,?,?,?,?,?)`,
+    [p.monthKey, p.cash, p.bank, p.mfs, p.amount, p.countedAt, p.updatedAt, p.syncStatus],
   );
 }
 

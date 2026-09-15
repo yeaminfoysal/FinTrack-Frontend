@@ -2,7 +2,7 @@
 
 @AGENTS.md
 
-> ⚠️ **Expo versioned docs:** কোড লেখার আগে এই SDK-র docs দেখো → https://docs.expo.dev/versions/v56.0.0/
+> ⚠️ **Expo versioned docs:** কোড লেখার আগে এই SDK-র docs দেখো → https://docs.expo.dev/versions/v57.0.0/
 
 একটি **Offline-First Personal Finance & Expense Tracker** মোবাইল অ্যাপ। এটি ক্লায়েন্ট; এর সঙ্গী backend আছে `../FinTrack-Backend` (NestJS + Prisma + PostgreSQL, ইতিমধ্যে তৈরি ও deployed-ready)।
 
@@ -12,31 +12,31 @@
 
 ## 🧭 সবচেয়ে গুরুত্বপূর্ণ নীতি (এগুলো ভাঙলে অ্যাপ ভুল হিসাব দেবে)
 
-1. **Client = Calculation Authority।** সব আর্থিক হিসাব (dashboard, untracked, saving, monthly summary) **client-এ, local SQLite থেকে** হবে — offline-এ কাজ করার জন্য। Backend-এর `/summary/*` শুধু optional cross-check; এর উপর dashboard নির্ভর করবে না।
+1. **Client = Calculation Authority।** সব আর্থিক হিসাব (dashboard, untracked, saving, monthly summary) **client-এ, local SQLite থেকে** হবে — offline-এ কাজ করার জন্য। Backend-এ কোনো হিসাব নেই — শুধু auth, users, sync আর health।
 2. **Money = integer paisa।** সব আর্থিক মান `number` (টাকা × ১০০)। কখনো float/decimal নয়। শুধু **দেখানোর সময়** ১০০ দিয়ে ভাগ করে `৳` format। (নিচের §Money দেখো।)
 3. **SQLite = source of truth।** UI সবসময় SQLite থেকে পড়ে/লেখে; সার্ভার শুধু sync target। কখনো সরাসরি API থেকে UI render করে offline ভাঙবে না।
-4. **Calculation formula = backend CLAUDE.md-এর §A–§F।** নিচে hubahu কপি করা আছে। দুই repo-তে একই সূত্র থাকতে হবে।
+4. **Calculation formula = §A–§F** (backend CLAUDE.md-এর spec-এর সাথে অভিন্ন, নিচে hubahu কপি)। Code-এ implementation শুধু এই repo-তে (`src/lib/calc/`)।
 
 ---
 
-## 🛠️ Tech Stack (যা ইতিমধ্যে সেটআপ করা)
+## 🛠️ Tech Stack
 
-| ক্ষেত্র | লাইব্রেরি | অবস্থা |
-| --- | --- | --- |
-| Framework | Expo SDK **56**, React Native 0.85, React 19 | ✅ initialized |
-| Routing | **Expo Router** (file-based, `src/app/`) | ✅ |
-| Language | TypeScript (strict) | ✅ |
-| Styling | **NativeWind v4** (Tailwind) | ✅ configured (`tailwind.config.js`, `src/global.css`, `babel.config.js`, `metro.config.js`) |
-| State | **Zustand** | ✅ installed |
-| Server/sync state | **TanStack Query** | ✅ installed |
-| HTTP | **axios** | ✅ installed |
-| Secure tokens | **expo-secure-store** | ✅ installed |
-| Offline DB | **expo-sqlite** | ✅ installed |
+| ক্ষেত্র | লাইব্রেরি |
+| --- | --- |
+| Framework | Expo SDK **57**, React Native 0.86, React 19 (React Compiler চালু) |
+| Routing | **Expo Router** (file-based, `src/app/`, typed routes) |
+| Language | TypeScript (strict) |
+| Styling | Inline `style` + theme tokens (`src/constants/tokens.ts`, `typography.ts`) — NativeWind/Tailwind নেই |
+| Font | **Hind Siliguri** (`@expo-google-fonts/hind-siliguri`) — `Text` wrapper `fontWeight` দেখে face বাছে |
+| State | **Zustand** (`src/stores/`; data store-এর slice গুলো `src/features/`) |
+| HTTP | **axios** |
+| Secure tokens | **expo-secure-store** |
+| Offline DB | **expo-sqlite** (web-এ localStorage snapshot) |
+| PDF | **expo-print** + **expo-sharing** |
+| Test | Jest + jest-expo |
 
 **এখনো যোগ করা হয়নি (দরকার হলে তখন install করবে):**
 - `react-native-mmkv` — app settings/theme/lastSync cache। ⚠️ **Expo Go-তে চলে না; dev build লাগবে।** তাই এটা যোগ করার আগে dev build সেটআপ করতে হবে। ততক্ষণ MMKV-র জায়গায় `expo-secure-store`/SQLite/AsyncStorage দিয়ে কাজ চালানো যায়।
-- `expo-print` + `expo-sharing` — client-side PDF report (HTML→PDF; বাংলা font embed)।
-- বাংলা font (**Noto Sans Bengali**) — `expo-font` দিয়ে।
 
 > নতুন native dependency যোগ করলে `npx expo install <pkg>` ব্যবহার করো (SDK-matched version)। JS-only হলে `npm install`।
 
@@ -50,36 +50,49 @@ npx expo start -c         # cache clear করে start
 npm run android | ios | web
 npx tsc --noEmit          # টাইপচেক (PR-এর আগে অবশ্যই)
 npx expo lint             # lint
+npm test                  # unit tests (Jest + jest-expo)
 npx expo export -p web    # bundle যাচাই (CI smoke)
 ```
 
-> NativeWind/Tailwind class পরিবর্তনের পর কখনো cache সমস্যা হলে `npx expo start -c`।
+> Babel/Metro config বা package বদলানোর পর `npx expo start -c` (cache clear)।
 
 ---
 
-## 📁 Project Structure (লক্ষ্য কাঠামো)
+## 📁 Project Structure
 
 ```
 src/
   app/                    # Expo Router routes (screens)
     (auth)/               # login, register, forgot-password
-    (tabs)/               # dashboard, income, expense, loan, history, settings
-    _layout.tsx           # root: providers (QueryClient), global.css import, theme
-  components/             # reusable UI (Button, Card, AmountText, ...)
-  features/               # feature logic (income/, expense/, loan/, summary/, sync/, auth/)
+    (tabs)/               # index (হোম), transactions (লেনদেন), loans (পাওনা-দেনা), report (রিপোর্ট)
+    add*.tsx, settings.tsx
+    _layout.tsx           # root: fonts, theme, auth gate, toast/dialog host
+  components/             # screen-এর অংশ: activity-list, charts, month-switcher, forms/ …
+    ui/                   # design system: Text, Button, Card, ListRow, BottomSheet, AmountText …
+  features/               # data store-এর slice — প্রতিটি feature-এর state action
+    data-state.ts         # store-এর shape (DataState) + input type
+    records/              # income/expense/loan-এর shared add/edit/delete/restore
+    income/ expense/ loan/
+    balance/              # practical balance + auto-adjust
+    summary/              # month-close
+    profile/ account/     # profile; init, demo seed, account বদল
+    storage/              # SQLite write + push trigger, web snapshot
+    sync/                 # pending count
   lib/
     api/                  # axios instance + endpoints + refresh interceptor
-    db/                   # SQLite: schema, migrations, repositories
-    calc/                 # ⭐ pure calculation functions (§A–§F) — heavily unit-tested
-    money.ts              # paisa <-> display helpers
-    date.ts               # month boundary / timezone helpers
-  stores/                 # Zustand stores (session, sync status, ui)
-  hooks/                  # React hooks (useDashboard, useSync, ...)
-  constants/              # theme, categories
+    db/                   # SQLite: migrations, repositories, demo seed
+    calc/                 # ⭐ pure calculation functions (§A–§F) + month index — heavily unit-tested
+    activity.ts           # লেনদেন timeline: row, day grouping, search/filter
+    money.ts · date.ts · digits.ts
+  stores/                 # Zustand: data (slice জোড়া দেয়), session, sync, ui
+  hooks/                  # useDashboard, useActivities, useSyncStatus
+  constants/              # tokens, typography, fonts, categories
+  providers/              # theme
+  test/                   # test factories
 ```
 
 - `@/*` → `src/*` (tsconfig alias আগে থেকেই সেট)।
-- নতুন screen = `src/app/`-এ ফাইল। Tabs/stack group convention মেনে চলো।
+- নতুন screen = `src/app/`-এ ফাইল। নতুন data action = মানানসই `src/features/<feature>/` slice-এ; `src/stores/data.ts` শুধু slice জোড়া দেয়, screen গুলো সেখান থেকেই `useDataStore` নেয়।
 - **Calculation code `src/lib/calc/`-এ pure function হিসেবে** রাখো (no React, no DB) — যাতে unit test করা যায়। UI/DB এদের কল করবে।
 
 ---
@@ -189,8 +202,11 @@ Net Worth = Practical Balance + Outstanding Lent − Outstanding Borrowed
 
 ### Sync Flow
 - **Push:** `syncStatus='PENDING'` রেকর্ডগুলো `POST /sync/push`-এ পাঠাও → success হলে `SYNCED`, fail হলে `FAILED`।
-- **Pull:** `GET /sync/pull?since=<lastSyncedAt>` → নতুন/updated/deleted রেকর্ড → **Last-Write-Wins** (`updatedAt` দিয়ে) SQLite-এ merge → `lastSyncedAt` আপডেট (MMKV/SecureStore-এ রাখো)।
-- LWW caveat: clock skew থাকলে ভুল winner সম্ভব; single-user app-এ ঝুঁকি কম।
+- **Pull:** `GET /sync/pull?since=<cursor>` → cursor-এর পরে server যে রেকর্ড লিখেছে (নতুন/updated/deleted) → **Last-Write-Wins** (`updatedAt` দিয়ে) SQLite-এ merge → cursor = response-এর `serverTime` (meta `lastSyncTime`)।
+  - Cursor server-এর ঘড়িতে: server প্রতিটি write-এ `serverUpdatedAt` বসায় আর pull সেটা দিয়ে filter করে (৬০ সেকেন্ড overlap সহ)। তাই অন্য device offline-এ edit করে পরে push করলেও মিস হয় না।
+  - Merge: local রেকর্ডে push-না-হওয়া change থাকলে আর সেটা server copy-র সমান বা নতুন হলে local-টাই থাকে (`shouldApplyIncoming`, `src/lib/records.ts`)।
+- Push সফল হলে শুধু সেই row `SYNCED` হয় যার `updatedAt` পাঠানো version-এর সমান — push চলার সময় edit হলে row `PENDING` থাকে।
+- LWW caveat: winner এখনো client `updatedAt` দিয়ে ঠিক হয়, তাই device-এর ঘড়ি ভুল হলে ভুল winner সম্ভব; single-user app-এ ঝুঁকি কম।
 
 ---
 
@@ -198,11 +214,14 @@ Net Worth = Practical Balance + Outstanding Lent − Outstanding Borrowed
 
 সব amount integer paisa। তারিখ ISO string।
 
+> **Schema বদলাতে:** `src/lib/db/migrations.ts`-এ `MIGRATIONS`-এর শেষে নতুন step যোগ করো — app open-এ `PRAGMA user_version` দেখে বাকি step গুলো transaction-এ চলে। Release হওয়া step কখনো edit কোরো না, নাহলে পুরোনো ফোনের DB আর update হবে না।
+
 - **income**: `id, amount, source, date, note, isDeleted, deletedAt, syncStatus, createdAt, updatedAt`
 - **expense**: `id, amount, category, date, description, isDeleted, deletedAt, syncStatus, createdAt, updatedAt`
 - **loan**: `id, direction('LENT'|'BORROWED'), personName, amount, date, note, status('ACTIVE'|'SETTLED'), settledDate, isDeleted, deletedAt, syncStatus, createdAt, updatedAt`
 - **monthly_summary**: `id, year, month, openingBalance, totalIncome, totalDailyExpense, outstandingLent, outstandingBorrowed, untrackedExpense, monthlySaving, closingBalance, practicalBalance, isDeleted, deletedAt, syncStatus, createdAt, updatedAt` (unique: `year+month`)
-- **practical_balance** (client-local): চলতি balance ইনপুট track করতে — অন্তত `{ month_key, amount, updatedAt }`; month-close-এ এটি `monthly_summary.practicalBalance`-এ যায়।
+- **practical_balance**: `monthKey, cash, bank, mfs, amount, countedAt, updatedAt, syncStatus` — প্রতি মাসে একটি। Server-এ `PracticalBalance` (userId + monthKey) হিসেবে sync হয়; month-close-এ `amount` `monthly_summary.practicalBalance`-এ যায়।
+  - **Auto-adjust** (`src/lib/calc/practical.ts`): entry add/edit/delete/settle হলে practical শুধু তখনই বদলায় যখন টাকার movement `countedAt`-এর পরে হয়েছে — আগের দিনের movement গোনা টাকার ভেতরেই আছে; একই দিনে entry কখন লেখা হয়েছে সেটা দেখা হয়। তাই আগের তারিখের ভুলে-যাওয়া খরচ লিখলে untracked কমে। Loan settle-এর টাকা settle-এর মাসে ফেরে।
 - **meta/kv**: `lastSyncedAt`, `lastClosedMonth` ইত্যাদি (MMKV বা SecureStore বা ছোট kv table)।
 
 Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `name`, `email`।
@@ -216,11 +235,10 @@ Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `na
 
 **Auth (public):** `POST /auth/register` `{email,password,name?,openingSavings?}` · `POST /auth/login` · `POST /auth/refresh` `{refreshToken}` · `POST /auth/logout` · `POST /auth/forgot-password` `{email}` (৬ সংখ্যার কোড email হয়) · `POST /auth/verify-reset-code` `{email,code}` → `{resetToken}` · `POST /auth/reset-password` `{token: resetToken, password}`
 **Users:** `GET /users/me` · `PATCH /users/me` `{name?}` · `PATCH /users/me/settings` `{currency?,timezone?,openingSavings?}`
-**Income/Expense:** `POST|GET /incomes` (`?from&to`), `GET|PATCH|DELETE /incomes/:id` · একইভাবে `/expenses` (list-এ `?category` ও আছে)
-**Loan:** `POST|GET /loans` (`?direction&status`), `GET|PATCH|DELETE /loans/:id`, `POST /loans/:id/settle` `{settledDate?}`
-**Summary (cross-check):** `GET /summary/dashboard?year&month&practicalBalance` · `GET /summary/monthly?year&month` · `GET /summary/history` · `PUT /summary/monthly` (month-close push)
-**Sync:** `POST /sync/push` `{incomes?,expenses?,loans?,monthlySummaries?}` · `GET /sync/pull?since=<ISO>`
+**Sync:** `POST /sync/push` `{incomes?,expenses?,loans?,monthlySummaries?,practicalBalances?}` · `GET /sync/pull?since=<serverTime>`
 **Health:** `GET /health`
+
+> Income/expense/loan-এর আলাদা REST আর `/summary/*` backend থেকে সরানো হয়েছে — record শুধু sync দিয়ে যায়, সব হিসাব client-এ।
 
 > পূর্ণ field/আচরণ: `../FinTrack-Backend/README.md` ও `../FinTrack-Backend/CLAUDE.md`।
 
@@ -238,10 +256,10 @@ Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `na
 
 ## 🧠 State Management — কে কী রাখে
 
-- **SQLite** = সব persistent ডেটার source of truth (income/expense/loan/summary)।
-- **TanStack Query** = SQLite read + server sync orchestration (queries/mutations; offline mutation queue)।
-- **Zustand** = session (auth), sync status (`syncing/lastSyncedAt`), ক্ষণস্থায়ী UI state।
-- **SecureStore** = tokens। **MMKV/kv** = settings, theme, lastSyncedAt, lastClosedMonth (MMKV যোগ না করা পর্যন্ত fallback)।
+- **SQLite** = সব persistent ডেটার source of truth (income/expense/loan/summary/practical balance)।
+- **`useDataStore` (Zustand)** = SQLite-এর in-memory copy যা UI পড়ে; প্রতিটি লেখা store + SQLite-এ PENDING হয়ে যায়, তারপর push (`src/features/storage/persist.ts`)।
+- **Zustand** = session (auth), sync status (`syncing/lastSyncedAt`), ক্ষণস্থায়ী UI state (toast, dialog)।
+- **SecureStore** = tokens। **SQLite `meta` table** = lastSyncTime, profile, শেষ ব্যবহৃত category/source।
 
 ---
 
@@ -253,7 +271,7 @@ Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `na
   - local `monthly_summary`-তে save করো এবং backend-এ push করো (`PUT /summary/monthly` বা sync push) — তাহলে History-তে per-month untracked দেখা যাবে।
 - **Idempotent** হতে হবে (একই মাস দুবার close হবে না — unique year+month)।
 - **Backdated edit → recompute (§11):** closed মাসে backdated income/expense add/edit/delete হলে **সেই মাস + পরের সব মাস recompute** করো (carry-forward chain ভেঙে যায়)। Recompute idempotent।
-- **বাস্তবায়ন** — `closeMonths()` (`src/stores/data.ts`), chain: `closedMonthChain()` (`src/lib/calc`):
+- **বাস্তবায়ন** — `closeMonths()` (`src/features/summary/month-close.ts`), chain: `closedMonthChain()` (`src/lib/calc`):
   - `lastClosedMonth` রাখা হয় না। প্রতিবার প্রথম record-এর মাস থেকে চলতি মাসের আগের মাস পর্যন্ত **পুরো chain** নতুন করে গণনা হয়; শুধু যে মাসের figure বদলেছে সেটাই `PENDING` হয়ে save + push হয়। Catch-up, backdated recompute আর idempotency — তিনটাই এই এক পথে।
   - Trigger: store subscription — app open (`ready`), income/expense/loan/practical/openingSavings বদলালে (sync pull সহ), আর app foreground-এ এলে।
   - Closed মাসের Outstanding Lent/Borrowed = **সেই মাসের শেষে** যা বাকি ছিল (`outstandingLoansAt`) — পরে loan settle হলেও পুরোনো মাসের summary বদলায় না।
@@ -265,11 +283,13 @@ Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `na
 
 ## 🖼️ UI / Theme
 
-- **NativeWind className** দিয়ে styling (`className="flex-1 bg-white px-4"`)। inline `StyleSheet` শুধু যেখানে NativeWind পারে না।
-- Dark/Light: `useColorScheme()` (template-এ আছে)। theme colors `src/constants/theme.ts`-এ।
-- **বাংলা rendering:** Noto Sans Bengali font লোড করো (`expo-font`) — টাকা/লেবেল বাংলায় দেখানোর জন্য।
-- Amount দেখাতে একটা `AmountText`/`formatTaka` কম্পোনেন্ট ব্যবহার করো (consistent `৳` format, paisa→display)।
-- Design এলে (code/screenshot/tokens) সেই অনুযায়ী screen বানানো হবে; এখনকার template example screen (`src/app/index.tsx`, `explore.tsx`) replace হবে।
+- **Inline `style`** + `useTheme()`-এর `tokens` (`src/constants/tokens.ts`) — light/dark runtime-এ বদলায়। NativeWind/`className` নেই।
+- **Text** সবসময় `@/components/ui/text` থেকে (ESLint rule) — `fontWeight` দেখে Hind Siliguri-র সঠিক face বসায়। Pressable React Native-এরটাই; function style (`({ pressed }) => …`) চলে।
+- Amount দেখাতে `AmountText`/`formatTaka` (consistent `৳` format, paisa→display)।
+- **Font size শুধু `textSize` scale থেকে** (`src/constants/typography.ts`: xs 12 · sm 13 · md 14 · lg 16 · xl 20 · display 32)। নতুন সংখ্যা বসাবে না; `AmountText size` এই key নেয়।
+- **Reusable:** নিচ থেকে ওঠা sheet = `BottomSheet`; icon + title/subtitle + trailing সারি = `ListRow` (একসাথে `ListGroup`-এ); মাস বদল = `MonthSwitcher`; chart = `components/charts.tsx` (plain `View` bar, library নেই)।
+- **Tabs:** হোম · লেনদেন · ＋ · পাওনা-দেনা (`loans`) · রিপোর্ট। Practical balance ইনপুট ("হিসাব মেলানো") আলাদা tab নয় — Home-এর untracked card থেকে `PracticalBalanceSheet` খোলে। দিন অনুযায়ী লেনদেন তালিকা + search/filter লেনদেন tab-এ (`src/lib/activity.ts`)।
+- **লম্বা list virtualized:** পুরো screen জুড়ে list হলে `<Screen scroll={false} padded={false}>` + `SectionList`/`FlatList` (`contentContainerStyle={screenListContentStyle}`)। ছোট, সীমিত list (Home-এর ৮টা entry, মাসের তালিকা) ScrollView-এ থাকতে পারে।
 
 ---
 
@@ -289,8 +309,9 @@ Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `na
 
 ## 🧪 Conventions / Definition of Done
 
-- নতুন কোডের আগে **এই ফাইল + প্রয়োজনে `../FinTrack-Backend/CLAUDE.md`** পড়ো; calculation দুই repo-তে অভিন্ন রাখো।
-- `src/lib/calc/` ফাংশনগুলোর **unit test** লেখো (§A–§F edge case সহ: untracked negative, no practical, loan settle, carry-forward chain)।
-- PR/commit-এর আগে: `npx tsc --noEmit` clean + `npx expo lint`।
+- নতুন কোডের আগে **এই ফাইল + প্রয়োজনে `../FinTrack-Backend/CLAUDE.md`** পড়ো; formula spec বদলালে দুই CLAUDE.md-তেই লেখো।
+- `src/lib/calc/` ফাংশনগুলোর **unit test** লেখো (§A–§F edge case সহ: untracked negative, no practical, loan settle, carry-forward chain)। Test থাকে কোডের পাশে `__tests__/`-এ; record builder `src/test/factories.ts`-এ।
+- PR/commit-এর আগে: `npx tsc --noEmit` clean + `npx expo lint` + `npm test`।
 - কোনো আর্থিক হিসাব float-এ কোরো না; কোনো hard delete কোরো না; কোনো token plain storage-এ রেখো না।
+- Store-এর record array কখনো mutate কোরো না, সবসময় নতুন array — `src/lib/calc/month-index.ts` array ধরেই মাসের index cache করে; mutate করলে পুরোনো হিসাব দেখাবে।
 - নতুন native module → `npx expo install`; Expo Go-তে না চললে dev build দরকার (README/AGENTS দেখো)।

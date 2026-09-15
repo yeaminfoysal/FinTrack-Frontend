@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { FlatList, Pressable, View } from 'react-native';
 
 import { AmountText } from '@/components/ui/amount-text';
 import { initialOf } from '@/components/ui/avatar';
@@ -8,11 +8,11 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
 import { IconButton } from '@/components/ui/icon-button';
-import { Pressable } from '@/components/ui/pressable';
-import { Screen } from '@/components/ui/screen';
+import { Screen, screenListContentStyle } from '@/components/ui/screen';
 import { Segmented } from '@/components/ui/segmented';
 import { Text } from '@/components/ui/text';
 import { withAlpha } from '@/constants/tokens';
+import { textSize } from '@/constants/typography';
 import { dayMonthBn, fullDateBn } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
 import { formatTaka } from '@/lib/money';
@@ -69,9 +69,8 @@ export default function LoansScreen() {
 
   const addLoan = () => router.push({ pathname: '/add', params: { type: 'loan', direction: tab } });
 
-  return (
-    <Screen>
-      {/* Header */}
+  const header = (
+    <View style={{ marginBottom: 12 }}>
       <View
         style={{
           flexDirection: 'row',
@@ -82,10 +81,10 @@ export default function LoansScreen() {
           marginBottom: 18,
         }}>
         <View style={{ flex: 1 }}>
-          <Text accessibilityRole="header" style={{ fontSize: 21, fontWeight: '700', color: tokens.ink }}>
-            লোন
+          <Text accessibilityRole="header" style={{ fontSize: textSize.xl, fontWeight: '700', color: tokens.ink }}>
+            পাওনা-দেনা
           </Text>
-          <Text style={{ fontSize: 13, color: tokens.muted }}>ধার দেওয়া ও ধার নেওয়া</Text>
+          <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>কে আপনাকে দেবে, আপনি কাকে দেবেন</Text>
         </View>
         <IconButton
           icon="swap-vertical"
@@ -94,7 +93,6 @@ export default function LoansScreen() {
         />
       </View>
 
-      {/* Totals */}
       <View style={{ flexDirection: 'row', gap: 11, marginBottom: 18 }}>
         <TotalCard label="মোট পাওনা" amount={totalOf(lent)} count={activeOf(lent).length} fill={tokens.lentFill} />
         <TotalCard label="মোট দেনা" amount={totalOf(borrowed)} count={activeOf(borrowed).length} fill={tokens.borrowedFill} />
@@ -102,36 +100,15 @@ export default function LoansScreen() {
 
       <Segmented options={DIRECTION_OPTIONS} value={tab} onChange={setTab} accessibilityLabel="লোনের ধরন" />
       {list.length > 0 ? (
-        <Text style={{ fontSize: 12.5, color: tokens.muted, marginTop: 10, marginHorizontal: 4 }}>
+        <Text style={{ fontSize: textSize.sm, color: tokens.muted, marginTop: 10, marginHorizontal: 4 }}>
           চলমান আগে, তারপর {sort === 'date' ? 'নতুন তারিখ আগে' : 'বেশি টাকা আগে'}
         </Text>
       ) : null}
+    </View>
+  );
 
-      <View style={{ gap: 11, marginTop: 12 }}>
-        {list.length === 0 ? (
-          <EmptyState
-            icon="people-outline"
-            title={tab === 'LENT' ? 'কোনো পাওনা নেই' : 'কোনো দেনা নেই'}
-            message={
-              tab === 'LENT'
-                ? 'কাউকে ধার দিলে এখানে লিখে রাখুন — কে কত ফেরত দেবে মনে থাকবে।'
-                : 'কারো থেকে ধার নিলে এখানে লিখে রাখুন — কাকে কত ফেরত দিতে হবে মনে থাকবে।'
-            }
-            actionLabel="নতুন লোন যোগ করুন"
-            onAction={addLoan}
-          />
-        ) : (
-          list.map((loan) => (
-            <LoanCard
-              key={loan.id}
-              loan={loan}
-              onSettle={() => void settle(loan)}
-              onOpen={() => router.push({ pathname: '/add-loan', params: { id: loan.id } })}
-            />
-          ))
-        )}
-      </View>
-
+  const footer = (
+    <>
       {tab === 'BORROWED' ? (
         <View
           style={{
@@ -146,16 +123,53 @@ export default function LoansScreen() {
             padding: 14,
           }}>
           <Icon name="information-circle-outline" size={18} color={tokens.muted} />
-          <Text style={{ flex: 1, fontSize: 13, color: tokens.muted, lineHeight: 20 }}>
+          <Text style={{ flex: 1, fontSize: textSize.sm, color: tokens.muted, lineHeight: 20 }}>
             ধার নেওয়া টাকা <Text style={{ color: tokens.ink, fontWeight: '700' }}>আয় নয়</Text> — এটি ফেরতযোগ্য দায়। শোধ করলে
             সেটি খরচও নয়, শুধু দায় নিষ্পত্তি।
           </Text>
         </View>
       ) : null}
-
       {list.length > 0 ? <Button label="নতুন লোন যোগ করুন" icon="add" onPress={addLoan} style={{ marginTop: 18 }} /> : null}
+    </>
+  );
+
+  return (
+    <Screen scroll={false} padded={false}>
+      <FlatList
+        data={list}
+        keyExtractor={(loan) => loan.id}
+        renderItem={({ item }) => (
+          <LoanCard
+            loan={item}
+            onSettle={() => void settle(item)}
+            onOpen={() => router.push({ pathname: '/add-loan', params: { id: item.id } })}
+          />
+        )}
+        ItemSeparatorComponent={LoanGap}
+        ListHeaderComponent={header}
+        ListEmptyComponent={
+          <EmptyState
+            icon="people-outline"
+            title={tab === 'LENT' ? 'কোনো পাওনা নেই' : 'কোনো দেনা নেই'}
+            message={
+              tab === 'LENT'
+                ? 'কাউকে ধার দিলে এখানে লিখে রাখুন — কে কত ফেরত দেবে মনে থাকবে।'
+                : 'কারো থেকে ধার নিলে এখানে লিখে রাখুন — কাকে কত ফেরত দিতে হবে মনে থাকবে।'
+            }
+            actionLabel="নতুন লোন যোগ করুন"
+            onAction={addLoan}
+          />
+        }
+        ListFooterComponent={footer}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={screenListContentStyle}
+      />
     </Screen>
   );
+}
+
+function LoanGap() {
+  return <View style={{ height: 11 }} />;
 }
 
 function TotalCard({ label, amount, count, fill }: { label: string; amount: number; count: number; fill: string }) {
@@ -166,9 +180,9 @@ function TotalCard({ label, amount, count, fill }: { label: string; amount: numb
       accessibilityLabel={`${label} ${formatTaka(amount)}, ${localDigits(count)}টি চলমান`}
       style={{ flex: 1, borderRadius: 18, padding: 15, backgroundColor: fill, overflow: 'hidden' }}>
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', backgroundColor: 'rgba(0,0,0,0.12)' }} />
-      <Text style={{ fontSize: 13, color: tokens.onFill }}>{label}</Text>
-      <AmountText paisa={amount} size={23} weight="700" color={tokens.onFill} numberOfLines={1} style={{ marginTop: 5 }} />
-      <Text style={{ fontSize: 12.5, color: tokens.onFill, marginTop: 3 }}>{localDigits(count)}টি চলমান</Text>
+      <Text style={{ fontSize: textSize.sm, color: tokens.onFill }}>{label}</Text>
+      <AmountText paisa={amount} size="xl" weight="700" color={tokens.onFill} numberOfLines={1} style={{ marginTop: 5 }} />
+      <Text style={{ fontSize: textSize.sm, color: tokens.onFill, marginTop: 3 }}>{localDigits(count)}টি চলমান</Text>
     </View>
   );
 }
@@ -205,15 +219,15 @@ function LoanCard({ loan, onSettle, onOpen }: { loan: Loan; onSettle: () => void
             justifyContent: 'center',
             backgroundColor: settled ? tokens.surface2 : withAlpha(color, 0.12),
           }}>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: settled ? tokens.muted : color }}>
+          <Text style={{ fontSize: textSize.lg, fontWeight: '700', color: settled ? tokens.muted : color }}>
             {initialOf(loan.personName)}
           </Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text numberOfLines={1} style={{ fontSize: 14.5, fontWeight: '600', color: settled ? tokens.muted : tokens.ink }}>
+          <Text numberOfLines={1} style={{ fontSize: textSize.md, fontWeight: '600', color: settled ? tokens.muted : tokens.ink }}>
             {loan.personName}
           </Text>
-          <Text numberOfLines={2} style={{ fontSize: 12.5, color: tokens.muted }}>
+          <Text numberOfLines={2} style={{ fontSize: textSize.sm, color: tokens.muted }}>
             {dayMonthBn(loan.date)}
             {loan.note ? ` · ${loan.note}` : ''}
           </Text>
@@ -221,7 +235,7 @@ function LoanCard({ loan, onSettle, onOpen }: { loan: Loan; onSettle: () => void
         <View style={{ alignItems: 'flex-end', gap: 4 }}>
           <AmountText
             paisa={loan.amount}
-            size={16}
+            size="lg"
             weight="700"
             color={settled ? tokens.muted : color}
             style={settled ? { textDecorationLine: 'line-through' } : undefined}
@@ -244,13 +258,13 @@ function LoanCard({ loan, onSettle, onOpen }: { loan: Loan; onSettle: () => void
                 backgroundColor: settled ? tokens.muted : isLent ? tokens.income : tokens.borrowed,
               }}
             />
-            <Text style={{ fontSize: 12, fontWeight: '600', color: tokens.ink }}>{statusLabel}</Text>
+            <Text style={{ fontSize: textSize.xs, fontWeight: '600', color: tokens.ink }}>{statusLabel}</Text>
           </View>
         </View>
       </Pressable>
       {settled ? (
         loan.settledDate ? (
-          <Text style={{ fontSize: 12.5, color: tokens.muted }}>
+          <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>
             {isLent ? 'ফেরত পাওয়া গেছে' : 'শোধ করা হয়েছে'} · {fullDateBn(loan.settledDate)}
           </Text>
         ) : null

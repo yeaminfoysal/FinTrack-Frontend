@@ -1,5 +1,3 @@
-import '@/global.css';
-
 import {
   HindSiliguri_400Regular,
   HindSiliguri_500Medium,
@@ -7,7 +5,6 @@ import {
   HindSiliguri_700Bold,
 } from '@expo-google-fonts/hind-siliguri';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -24,8 +21,6 @@ import { useSyncStore } from '@/stores/sync';
 
 // Keep the splash screen up until the app fonts are ready, so text never flashes in a fallback face.
 SplashScreen.preventAutoHideAsync().catch(() => {});
-
-const queryClient = new QueryClient();
 
 function AuthGate({ children }: { children: ReactNode }) {
   const status = useSessionStore((s) => s.status);
@@ -86,23 +81,21 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <AuthGate>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="settings" />
-              <Stack.Screen name="add" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="add-income" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="add-expense" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="add-loan" options={{ presentation: 'modal' }} />
-            </Stack>
-          </AuthGate>
-          <ToastHost />
-          <DialogHost />
-        </ThemeProvider>
-      </QueryClientProvider>
+      <ThemeProvider>
+        <AuthGate>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="settings" />
+            <Stack.Screen name="add" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="add-income" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="add-expense" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="add-loan" options={{ presentation: 'modal' }} />
+          </Stack>
+        </AuthGate>
+        <ToastHost />
+        <DialogHost />
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

@@ -3,6 +3,7 @@ import { TextInput, View } from 'react-native';
 
 import { Text } from '@/components/ui/text';
 import { FONT_FAMILY } from '@/constants/fonts';
+import { textSize } from '@/constants/typography';
 import { formatTaka, sanitizeAmountInput, toPaisa } from '@/lib/money';
 import { useTheme } from '@/providers/theme-provider';
 
@@ -24,7 +25,7 @@ export function AmountInput({ value, onChangeText, label = 'পরিমাণ',
 
   return (
     <View style={{ gap: 7 }}>
-      <Text style={{ fontSize: 13, fontWeight: '600', color: tokens.muted, marginLeft: 2 }}>{label}</Text>
+      <Text style={{ fontSize: textSize.sm, fontWeight: '600', color: tokens.muted, marginLeft: 2 }}>{label}</Text>
       <View
         style={{
           flexDirection: 'row',
@@ -37,7 +38,7 @@ export function AmountInput({ value, onChangeText, label = 'পরিমাণ',
           paddingHorizontal: 16,
           paddingVertical: 4,
         }}>
-        <Text style={{ fontSize: 28, fontWeight: '600', color: accent ?? tokens.primary }}>৳</Text>
+        <Text style={{ fontSize: textSize.display, fontWeight: '600', color: accent ?? tokens.primary }}>৳</Text>
         <TextInput
           value={value}
           onChangeText={(text) => onChangeText(sanitizeAmountInput(text))}
@@ -48,15 +49,15 @@ export function AmountInput({ value, onChangeText, label = 'পরিমাণ',
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           accessibilityLabel={label}
-          style={{ flex: 1, minWidth: 0, color: tokens.ink, fontSize: 34, fontFamily: FONT_FAMILY.bold, paddingVertical: 6 }}
+          style={{ flex: 1, minWidth: 0, color: tokens.ink, fontSize: textSize.display, fontFamily: FONT_FAMILY.bold, paddingVertical: 6 }}
         />
       </View>
       {error ? (
-        <Text accessibilityLiveRegion="polite" style={{ fontSize: 12.5, color: tokens.expense, marginLeft: 2 }}>
+        <Text accessibilityLiveRegion="polite" style={{ fontSize: textSize.sm, color: tokens.expense, marginLeft: 2 }}>
           {error}
         </Text>
       ) : paisa >= 100000 ? (
-        <Text style={{ fontSize: 12.5, color: tokens.muted, marginLeft: 2 }}>{formatTaka(paisa)}</Text>
+        <Text style={{ fontSize: textSize.sm, color: tokens.muted, marginLeft: 2 }}>{formatTaka(paisa)}</Text>
       ) : null}
     </View>
   );

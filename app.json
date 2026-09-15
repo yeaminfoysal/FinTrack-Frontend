@@ -40,9 +40,7 @@
       "expo-secure-store",
       "expo-sqlite",
       "expo-font",
-      "expo-image",
       "expo-status-bar",
-      "expo-web-browser",
       "expo-sharing"
     ],
     "experiments": {

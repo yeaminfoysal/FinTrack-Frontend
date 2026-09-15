@@ -1,7 +1,7 @@
 import type { StyleProp, ViewStyle } from 'react-native';
+import { Pressable } from 'react-native';
 
 import { Icon, type IconName } from '@/components/ui/icon';
-import { Pressable } from '@/components/ui/pressable';
 import { useTheme } from '@/providers/theme-provider';
 
 interface IconButtonProps {

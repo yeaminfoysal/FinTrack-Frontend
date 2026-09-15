@@ -1,8 +1,8 @@
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { Icon } from '@/components/ui/icon';
-import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
+import { textSize } from '@/constants/typography';
 import { useTheme } from '@/providers/theme-provider';
 
 interface SectionHeaderProps {
@@ -26,7 +26,7 @@ export function SectionHeader({ title, actionLabel, onAction, actionChevron = tr
         paddingHorizontal: 4,
         minHeight: 32,
       }}>
-      <Text accessibilityRole="header" style={{ fontSize: 15, fontWeight: '700', color: tokens.ink }}>
+      <Text accessibilityRole="header" style={{ fontSize: textSize.lg, fontWeight: '700', color: tokens.ink }}>
         {title}
       </Text>
       {actionLabel && onAction ? (
@@ -42,7 +42,7 @@ export function SectionHeader({ title, actionLabel, onAction, actionChevron = tr
             paddingLeft: 8,
             opacity: pressed ? 0.7 : 1,
           })}>
-          <Text style={{ fontSize: 13, fontWeight: '600', color: tokens.primary }}>{actionLabel}</Text>
+          <Text style={{ fontSize: textSize.sm, fontWeight: '600', color: tokens.primary }}>{actionLabel}</Text>
           {actionChevron ? <Icon name="chevron-forward" size={14} color={tokens.primary} /> : null}
         </Pressable>
       ) : null}

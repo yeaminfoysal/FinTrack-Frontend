@@ -24,3 +24,16 @@ export function newBase(): {
     syncStatus: 'PENDING',
   };
 }
+
+/**
+ * Last-Write-Wins for a pull: the server copy replaces the local record unless the
+ * local one holds a change not sent yet that is at least as new — that one stays and
+ * wins on the server with the next push.
+ */
+export function shouldApplyIncoming(
+  local: { syncStatus: SyncStatus; updatedAt: string } | null | undefined,
+  incoming: { updatedAt: string },
+): boolean {
+  if (!local || local.syncStatus === 'SYNCED') return true;
+  return Date.parse(incoming.updatedAt) > Date.parse(local.updatedAt);
+}

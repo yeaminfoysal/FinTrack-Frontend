@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Field } from '@/components/ui/field';
 import { Segmented } from '@/components/ui/segmented';
 import { Text } from '@/components/ui/text';
+import { textSize } from '@/constants/typography';
 import { useSyncStatus } from '@/hooks/use-sync-status';
 import { relativeTimeBn } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
@@ -74,10 +75,10 @@ export default function SettingsScreen() {
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         <Avatar name={profile.name} size={52} />
         <View style={{ flex: 1, gap: 2 }}>
-          <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '700', color: tokens.ink }}>
+          <Text numberOfLines={1} style={{ fontSize: textSize.lg, fontWeight: '700', color: tokens.ink }}>
             {profile.name}
           </Text>
-          <Text numberOfLines={1} style={{ fontSize: 13, color: tokens.muted }}>
+          <Text numberOfLines={1} style={{ fontSize: textSize.sm, color: tokens.muted }}>
             {profile.email || 'ইমেইল নেই'}
           </Text>
         </View>
@@ -89,10 +90,10 @@ export default function SettingsScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
             <SyncBadge />
             {sync.lastSyncedAt ? (
-              <Text style={{ fontSize: 12.5, color: tokens.muted }}>শেষ সিঙ্ক: {relativeTimeBn(sync.lastSyncedAt)}</Text>
+              <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>শেষ সিঙ্ক: {relativeTimeBn(sync.lastSyncedAt)}</Text>
             ) : null}
           </View>
-          <Text style={{ fontSize: 13, lineHeight: 20, color: tokens.muted }}>
+          <Text style={{ fontSize: textSize.sm, lineHeight: 20, color: tokens.muted }}>
             {sync.isDemo
               ? 'ডেমো মোডে ডেটা শুধু এই ডিভাইসে থাকে, সার্ভারে যায় না।'
               : 'সব এন্ট্রি আগে এই ডিভাইসে সেভ হয়; ইন্টারনেট পেলে নিজে থেকেই সার্ভারে যায়।'}
@@ -127,7 +128,7 @@ export default function SettingsScreen() {
         <Card soft style={{ gap: 8 }}>
           <InfoRow label="মুদ্রা" value={profile.currency === 'BDT' ? 'বাংলাদেশি টাকা (৳)' : profile.currency} />
           <InfoRow label="সময় অঞ্চল" value="ফোনের সময় অনুযায়ী" />
-          <Text style={{ fontSize: 12.5, lineHeight: 18, color: tokens.muted }}>
+          <Text style={{ fontSize: textSize.sm, lineHeight: 18, color: tokens.muted }}>
             মাসের শুরু-শেষ আপনার ফোনের সময় ধরে হিসাব হয়।
           </Text>
         </Card>
@@ -142,7 +143,7 @@ export default function SettingsScreen() {
         onPress={() => void signOut()}
         style={{ marginTop: 4 }}
       />
-      <Text style={{ textAlign: 'center', fontSize: 12, color: tokens.muted, marginTop: 6 }}>
+      <Text style={{ textAlign: 'center', fontSize: textSize.xs, color: tokens.muted, marginTop: 6 }}>
         FinTrack · সংস্করণ {localDigits(Constants.expoConfig?.version ?? '1.0.0')}
       </Text>
     </ModalShell>
@@ -205,7 +206,7 @@ function SettingGroup({ label, children }: { label: string; children: ReactNode 
   const { tokens } = useTheme();
   return (
     <View style={{ gap: 10 }}>
-      <Text accessibilityRole="header" style={{ fontSize: 13, fontWeight: '700', color: tokens.muted, marginLeft: 2, marginTop: 6 }}>
+      <Text accessibilityRole="header" style={{ fontSize: textSize.sm, fontWeight: '700', color: tokens.muted, marginLeft: 2, marginTop: 6 }}>
         {label}
       </Text>
       {children}
@@ -217,8 +218,8 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   const { tokens } = useTheme();
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
-      <Text style={{ fontSize: 13.5, color: tokens.muted }}>{label}</Text>
-      <Text style={{ flexShrink: 1, textAlign: 'right', fontSize: 13.5, fontWeight: '600', color: tokens.ink }}>{value}</Text>
+      <Text style={{ fontSize: textSize.md, color: tokens.muted }}>{label}</Text>
+      <Text style={{ flexShrink: 1, textAlign: 'right', fontSize: textSize.md, fontWeight: '600', color: tokens.ink }}>{value}</Text>
     </View>
   );
 }

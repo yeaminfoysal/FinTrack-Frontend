@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 
 import { IconButton } from '@/components/ui/icon-button';
 import { Text } from '@/components/ui/text';
+import { textSize } from '@/constants/typography';
 import { useTheme } from '@/providers/theme-provider';
 
 /** Closes a modal screen; falls back to home when it was opened directly (e.g. a web refresh). */
@@ -30,7 +31,7 @@ export function ModalShell({ title, children }: { title: string; children: React
             paddingHorizontal: 18,
             paddingVertical: 12,
           }}>
-          <Text accessibilityRole="header" numberOfLines={1} style={{ flex: 1, fontSize: 19, fontWeight: '700', color: tokens.ink }}>
+          <Text accessibilityRole="header" numberOfLines={1} style={{ flex: 1, fontSize: textSize.xl, fontWeight: '700', color: tokens.ink }}>
             {title}
           </Text>
           <IconButton icon="close" label="বন্ধ করুন" onPress={close} />

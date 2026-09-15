@@ -1,14 +1,14 @@
 import { isAxiosError } from 'axios';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { AuthShell } from '@/components/auth-shell';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Notice } from '@/components/ui/notice';
-import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
+import { textSize } from '@/constants/typography';
 import { localDigits } from '@/lib/digits';
 import { sanitizeAmountInput, toPaisa } from '@/lib/money';
 import { useTheme } from '@/providers/theme-provider';
@@ -121,9 +121,9 @@ export default function RegisterScreen() {
         <Button label="রেজিস্টার করুন" onPress={() => void submit()} loading={loading} style={{ marginTop: 4 }} />
 
         <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 4, gap: 5 }}>
-          <Text style={{ color: tokens.muted, fontSize: 14 }}>ইতিমধ্যে অ্যাকাউন্ট আছে?</Text>
+          <Text style={{ color: tokens.muted, fontSize: textSize.md }}>ইতিমধ্যে অ্যাকাউন্ট আছে?</Text>
           <Pressable onPress={toLogin} accessibilityRole="link" hitSlop={10} style={{ paddingVertical: 4 }}>
-            <Text style={{ color: tokens.primary, fontSize: 14, fontWeight: '700' }}>লগইন</Text>
+            <Text style={{ color: tokens.primary, fontSize: textSize.md, fontWeight: '700' }}>লগইন</Text>
           </Pressable>
         </View>
       </View>

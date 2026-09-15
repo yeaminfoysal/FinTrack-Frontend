@@ -1,8 +1,8 @@
-import { ActivityIndicator, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, type StyleProp, View, type ViewStyle } from 'react-native';
 
 import { Icon, type IconName } from '@/components/ui/icon';
-import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
+import { textSize } from '@/constants/typography';
 import { useTheme } from '@/providers/theme-provider';
 
 type Variant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
@@ -81,7 +81,7 @@ export function Button({
       ) : (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {icon ? <Icon name={icon} size={small ? 16 : 18} color={fg} /> : null}
-          <Text style={{ color: fg, fontSize: small ? 13.5 : 15, fontWeight: '600' }}>{label}</Text>
+          <Text style={{ color: fg, fontSize: small ? textSize.md : textSize.lg, fontWeight: '600' }}>{label}</Text>
         </View>
       )}
     </Pressable>

@@ -111,8 +111,19 @@ export function buildSeed(email = 'atizoom2@gmail.com'): SeedData {
   summaries.push(mk(p2, 22000, 52000, 29600, 2400, 8000, 0, 30000)); // saving 8,000
   summaries.push(mk(p3, 18500, 41000, 30600, 900, 5000, 0, 22000)); // saving 3,500
 
+  // Counted when the demo starts, so entries added from then on move the cash (see calc/practical).
+  const countedAt = new Date().toISOString();
   const practicals: PracticalBalance[] = [
-    { monthKey: curKey, cash: tk(18500), bank: tk(42000), mfs: tk(13700), amount: tk(74200), updatedAt: iso(year, month, 25) },
+    {
+      monthKey: curKey,
+      cash: tk(18500),
+      bank: tk(42000),
+      mfs: tk(13700),
+      amount: tk(74200),
+      countedAt,
+      updatedAt: countedAt,
+      syncStatus: 'SYNCED',
+    },
   ];
 
   const profile: UserProfile = {

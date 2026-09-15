@@ -5,7 +5,7 @@
  */
 import { categoryMeta, INCOME_SOURCES } from '@/constants/categories';
 import { lightTokens as t } from '@/constants/tokens';
-import { dailyExpenses, type DashboardSnapshot } from '@/lib/calc';
+import { categoryTotals, dailyExpenses, type DashboardSnapshot } from '@/lib/calc';
 import { dayMonthBn, fullDateBn, isInMonth, monthLabelBn, weekdayBn, type MonthKey } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
 import { formatTaka } from '@/lib/money';
@@ -41,9 +41,7 @@ export function buildMonthReportHtml(input: MonthReportInput): string {
   const days = dailyExpenses(input.expenses, monthKey).reverse(); // oldest day first reads naturally on paper
   const loans = input.loans.filter((l) => !l.isDeleted && isInMonth(l.date, monthKey)).sort(byDateAsc);
 
-  const categoryTotals = new Map<string, number>();
-  for (const d of days) for (const e of d.items) categoryTotals.set(e.category, (categoryTotals.get(e.category) ?? 0) + e.amount);
-  const categories = [...categoryTotals.entries()].sort((a, b) => b[1] - a[1]);
+  const categories = categoryTotals(input.expenses, monthKey);
 
   const untrackedLabel = s.untracked < 0 ? 'আনট্র্যাকড আয়' : 'আনট্র্যাকড খরচ';
   const practicalNote = s.practical == null ? ' <span class="muted">(ব্যালেন্স ইনপুট দেওয়া হয়নি)</span>' : '';
@@ -65,8 +63,8 @@ export function buildMonthReportHtml(input: MonthReportInput): string {
   ].join('');
 
   const categoryRows = categories
-    .map(([key, amount]) => {
-      const meta = categoryMeta(key);
+    .map(({ category, amount }) => {
+      const meta = categoryMeta(category);
       const pct = s.monthDailyExpense > 0 ? Math.round((amount / s.monthDailyExpense) * 100) : 0;
       return `<tr><td>${meta.icon} ${esc(meta.label)}</td><td class="bar"><span style="width:${pct}%"></span></td><td class="num">${localDigits(pct)}%</td><td class="num">${formatTaka(amount)}</td></tr>`;
     })

@@ -1,7 +1,8 @@
+import { Pressable } from 'react-native';
 import { Icon } from '@/components/ui/icon';
-import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { withAlpha } from '@/constants/tokens';
+import { textSize } from '@/constants/typography';
 import { useSyncStatus } from '@/hooks/use-sync-status';
 import { useTheme } from '@/providers/theme-provider';
 
@@ -38,7 +39,7 @@ export function SyncBadge({ onFill = false }: { onFill?: boolean }) {
         opacity: pressed ? 0.75 : 1,
       })}>
       <Icon name={sync.icon} size={14} color={onFill ? tokens.onFill : toneColor} />
-      <Text style={{ fontSize: 12, fontWeight: '600', color: onFill ? tokens.onFill : tokens.ink }}>{sync.label}</Text>
+      <Text style={{ fontSize: textSize.xs, fontWeight: '600', color: onFill ? tokens.onFill : tokens.ink }}>{sync.label}</Text>
     </Pressable>
   );
 }

@@ -1,7 +1,7 @@
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
-import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
+import { textSize } from '@/constants/typography';
 import { useTheme } from '@/providers/theme-provider';
 
 interface Option<T extends string> {
@@ -54,7 +54,7 @@ export function Segmented<T extends string>({ options, value, onChange, accessib
               shadowOffset: { width: 0, height: 2 },
               elevation: selected ? 2 : 0,
             }}>
-            <Text style={{ fontSize: 14, fontWeight: '600', color: selected ? tokens.ink : tokens.muted }}>{opt.label}</Text>
+            <Text style={{ fontSize: textSize.md, fontWeight: '600', color: selected ? tokens.ink : tokens.muted }}>{opt.label}</Text>
           </Pressable>
         );
       })}

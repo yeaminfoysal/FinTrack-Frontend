@@ -1,12 +1,12 @@
 import { useRouter } from 'expo-router';
 import { TabList, TabSlot, TabTrigger, Tabs } from 'expo-router/ui';
 import { forwardRef } from 'react';
-import { View } from 'react-native';
+import { Pressable, type PressableProps, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon, type IconName } from '@/components/ui/icon';
-import { Pressable, type PressableProps } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
+import { textSize } from '@/constants/typography';
 import { useTheme } from '@/providers/theme-provider';
 
 type TabButtonProps = PressableProps & {
@@ -32,7 +32,7 @@ const TabButton = forwardRef<View, TabButtonProps>(function TabButton(
       accessibilityState={{ selected: !!isFocused }}
       style={{ flex: 1, minHeight: 52, alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 6 }}>
       <Icon name={isFocused ? activeIcon : icon} size={22} color={color} />
-      <Text style={{ fontSize: 12, fontWeight: isFocused ? '700' : '500', color }}>{label}</Text>
+      <Text numberOfLines={1} style={{ fontSize: textSize.xs, fontWeight: isFocused ? '700' : '500', color }}>{label}</Text>
     </Pressable>
   );
 });
@@ -88,12 +88,12 @@ export default function TabsLayout() {
         <TabTrigger name="index" href="/" asChild>
           <TabButton icon="home-outline" activeIcon="home" label="হোম" />
         </TabTrigger>
-        <TabTrigger name="loans" href="/loans" asChild>
-          <TabButton icon="swap-horizontal-outline" activeIcon="swap-horizontal" label="লোন" />
+        <TabTrigger name="transactions" href="/transactions" asChild>
+          <TabButton icon="receipt-outline" activeIcon="receipt" label="লেনদেন" />
         </TabTrigger>
         <Fab />
-        <TabTrigger name="balance" href="/balance" asChild>
-          <TabButton icon="wallet-outline" activeIcon="wallet" label="ব্যালেন্স" />
+        <TabTrigger name="loans" href="/loans" asChild>
+          <TabButton icon="people-outline" activeIcon="people" label="পাওনা-দেনা" />
         </TabTrigger>
         <TabTrigger name="report" href="/report" asChild>
           <TabButton icon="bar-chart-outline" activeIcon="bar-chart" label="রিপোর্ট" />

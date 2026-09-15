@@ -1,7 +1,9 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { useWindowDimensions, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, useWindowDimensions, View } from 'react-native';
 
+import { ActivityDayList } from '@/components/activity-list';
+import { PracticalBalanceSheet } from '@/components/practical-balance-sheet';
 import { SyncBadge } from '@/components/sync-badge';
 import { AmountText } from '@/components/ui/amount-text';
 import { Avatar } from '@/components/ui/avatar';
@@ -9,13 +11,14 @@ import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { IconButton } from '@/components/ui/icon-button';
-import { Pressable } from '@/components/ui/pressable';
 import { Screen } from '@/components/ui/screen';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Text } from '@/components/ui/text';
-import { withAlpha } from '@/constants/tokens';
-import { useDashboard, type Activity } from '@/hooks/use-dashboard';
+import { radii, withAlpha } from '@/constants/tokens';
+import { textSize } from '@/constants/typography';
+import { useDashboard } from '@/hooks/use-dashboard';
 import { useSyncStatus } from '@/hooks/use-sync-status';
+import { groupByDay } from '@/lib/activity';
 import { monthLabelBn, monthName, parseMonthKey } from '@/lib/date';
 import { formatTaka } from '@/lib/money';
 import { useTheme } from '@/providers/theme-provider';
@@ -26,6 +29,8 @@ export default function DashboardScreen() {
   const { snapshot, recent, profile, monthKey } = useDashboard();
   const sync = useSyncStatus();
   const [refreshing, setRefreshing] = useState(false);
+  const [balanceOpen, setBalanceOpen] = useState(false);
+  const recentDays = useMemo(() => groupByDay(recent), [recent]);
 
   const refresh = async () => {
     setRefreshing(true);
@@ -54,10 +59,10 @@ export default function DashboardScreen() {
           style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <Avatar name={profile.name} />
           <View style={{ flex: 1 }}>
-            <Text numberOfLines={1} style={{ fontSize: 12.5, color: tokens.muted }}>
+            <Text numberOfLines={1} style={{ fontSize: textSize.sm, color: tokens.muted }}>
               আসসালামু আলাইকুম
             </Text>
-            <Text numberOfLines={1} style={{ fontSize: 17, fontWeight: '700', color: tokens.ink }}>
+            <Text numberOfLines={1} style={{ fontSize: textSize.lg, fontWeight: '700', color: tokens.ink }}>
               {profile.name}
             </Text>
           </View>
@@ -79,7 +84,7 @@ export default function DashboardScreen() {
             opacity: pressed ? 0.8 : 1,
           })}>
           {compactHeader ? null : <Icon name="calendar-outline" size={15} color={tokens.muted} />}
-          <Text style={{ fontSize: 13, fontWeight: '600', color: tokens.ink }}>
+          <Text style={{ fontSize: textSize.sm, fontWeight: '600', color: tokens.ink }}>
             {compactHeader ? monthName(parseMonthKey(monthKey).month) : monthLabelBn(monthKey)}
           </Text>
         </Pressable>
@@ -111,18 +116,18 @@ export default function DashboardScreen() {
           }}
         />
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <Text style={{ fontSize: 14, fontWeight: '500', color: tokens.onFill }}>বর্তমান ব্যালেন্স</Text>
+          <Text style={{ fontSize: textSize.md, fontWeight: '500', color: tokens.onFill }}>বর্তমান ব্যালেন্স</Text>
           <SyncBadge onFill />
         </View>
         <AmountText
           paisa={snapshot.theoretical}
-          size={38}
+          size="display"
           weight="700"
           color={tokens.onFill}
           numberOfLines={1}
           style={{ marginTop: 6 }}
         />
-        <Text style={{ fontSize: 13, color: tokens.onFill }}>
+        <Text style={{ fontSize: textSize.sm, color: tokens.onFill }}>
           {hasPractical
             ? `বাস্তবে হাতে আছে ${formatTaka(snapshot.practical ?? 0)}`
             : 'হিসাব অনুযায়ী এখন হাতে যত থাকার কথা'}
@@ -136,15 +141,15 @@ export default function DashboardScreen() {
       {/* Opening + saving */}
       <View style={{ flexDirection: 'row', gap: 11, marginTop: 14 }}>
         <Card style={{ flex: 1 }}>
-          <Text style={{ fontSize: 12.5, color: tokens.muted }}>মাসের শুরুতে ছিল</Text>
-          <AmountText paisa={snapshot.opening} size={18} color={tokens.ink} numberOfLines={1} style={{ marginTop: 4 }} />
+          <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>মাসের শুরুতে ছিল</Text>
+          <AmountText paisa={snapshot.opening} size="xl" color={tokens.ink} numberOfLines={1} style={{ marginTop: 4 }} />
         </Card>
         <Card style={{ flex: 1 }}>
-          <Text style={{ fontSize: 12.5, color: tokens.muted }}>এই মাসের সঞ্চয়</Text>
+          <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>এই মাসের সঞ্চয়</Text>
           <AmountText
             paisa={snapshot.saving}
             signed
-            size={18}
+            size="xl"
             numberOfLines={1}
             color={snapshot.saving >= 0 ? tokens.income : tokens.expense}
             style={{ marginTop: 4 }}
@@ -152,45 +157,43 @@ export default function DashboardScreen() {
         </Card>
       </View>
 
-      {/* Loans */}
-      <SectionHeader title="পাওনা ও দেনা" actionLabel="সব দেখুন" onAction={() => router.push('/loans')} />
-      <View style={{ flexDirection: 'row', gap: 11 }}>
-        <LoanTotal
-          label="পাওনা"
-          caption="মানুষ আপনাকে দেবে"
-          amount={snapshot.outstandingLent}
-          color={tokens.lent}
-          onPress={() => router.push('/loans')}
-        />
-        <LoanTotal
-          label="দেনা"
-          caption="আপনি মানুষকে দেবেন"
-          amount={snapshot.outstandingBorrowed}
-          color={tokens.borrowed}
-          onPress={() => router.push('/loans')}
-        />
-      </View>
-      <Card
-        soft
-        style={{ marginTop: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 15 }}>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 13.5, fontWeight: '600', color: tokens.ink }}>নেট ওয়ার্থ</Text>
-          <Text style={{ fontSize: 12, color: tokens.muted }}>হাতে থাকা + পাওনা − দেনা</Text>
-        </View>
-        <AmountText paisa={snapshot.netWorth} size={17} weight="700" color={tokens.ink} />
-      </Card>
-
-      {/* Untracked */}
+      {/* Loans — one line */}
       <Pressable
-        onPress={() => router.push('/balance')}
+        onPress={() => router.push('/loans')}
+        accessibilityRole="button"
+        accessibilityLabel={`পাওনা ${formatTaka(snapshot.outstandingLent)}, দেনা ${formatTaka(snapshot.outstandingBorrowed)}`}
+        accessibilityHint="পাওনা-দেনা পেজ খুলবে"
+        style={({ pressed }) => ({
+          marginTop: 11,
+          minHeight: 52,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+          paddingVertical: 12,
+          paddingHorizontal: 14,
+          borderRadius: radii.lg,
+          backgroundColor: tokens.surface,
+          borderColor: tokens.line,
+          borderWidth: 1,
+          opacity: pressed ? 0.85 : 1,
+        })}>
+        <LoanFigure label="পাওনা" amount={snapshot.outstandingLent} color={tokens.lent} />
+        <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: tokens.line }} />
+        <LoanFigure label="দেনা" amount={snapshot.outstandingBorrowed} color={tokens.borrowed} />
+        <Icon name="chevron-forward" size={16} color={tokens.muted} />
+      </Pressable>
+
+      {/* Untracked — opens the reconcile sheet */}
+      <Pressable
+        onPress={() => setBalanceOpen(true)}
         accessibilityRole="button"
         accessibilityLabel={
           hasPractical ? `${untrackedLabel} ${formatTaka(Math.abs(snapshot.untracked))}` : 'বাস্তবে হাতে কত আছে লিখুন'
         }
-        accessibilityHint="ব্যালেন্স পেজ খুলবে"
+        accessibilityHint="হিসাব মেলানোর শিট খুলবে"
         style={({ pressed }) => ({
-          marginTop: 14,
-          borderRadius: 16,
+          marginTop: 11,
+          borderRadius: radii.lg,
           padding: 15,
           backgroundColor: tokens.surface,
           borderWidth: 1,
@@ -217,10 +220,10 @@ export default function DashboardScreen() {
           />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: tokens.ink }}>
+          <Text style={{ fontSize: textSize.md, fontWeight: '600', color: tokens.ink }}>
             {hasPractical ? untrackedLabel : 'হাতে কত আছে লিখুন'}
           </Text>
-          <Text style={{ fontSize: 12.5, color: tokens.muted }}>
+          <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>
             {hasPractical
               ? untrackedIsIncome
                 ? 'লেখা হয়নি এমন টাকা হাতে এসেছে'
@@ -229,14 +232,18 @@ export default function DashboardScreen() {
           </Text>
         </View>
         {hasPractical ? (
-          <AmountText paisa={Math.abs(snapshot.untracked)} size={18} weight="700" color={untrackedColor} />
+          <AmountText paisa={Math.abs(snapshot.untracked)} size="xl" weight="700" color={untrackedColor} />
         ) : (
           <Icon name="chevron-forward" size={18} color={tokens.muted} />
         )}
       </Pressable>
 
-      {/* Recent */}
-      <SectionHeader title="সাম্প্রতিক লেনদেন" actionLabel="মাসিক রিপোর্ট" onAction={() => router.push('/report')} />
+      {/* Recent, grouped by day */}
+      <SectionHeader
+        title="সাম্প্রতিক লেনদেন"
+        actionLabel={recent.length > 0 ? 'সব দেখুন' : undefined}
+        onAction={() => router.push('/transactions')}
+      />
       {recent.length === 0 ? (
         <EmptyState
           icon="receipt-outline"
@@ -246,15 +253,10 @@ export default function DashboardScreen() {
           onAction={() => router.push('/add')}
         />
       ) : (
-        <View>
-          {recent.map((item, idx) => (
-            <View key={item.id}>
-              <TransactionRow item={item} />
-              {idx < recent.length - 1 ? <View style={{ height: 1, backgroundColor: tokens.line }} /> : null}
-            </View>
-          ))}
-        </View>
+        <ActivityDayList days={recentDays} />
       )}
+
+      <PracticalBalanceSheet visible={balanceOpen} onClose={() => setBalanceOpen(false)} />
     </Screen>
   );
 }
@@ -265,94 +267,20 @@ function MiniStat({ icon, label, value }: { icon: IconName; label: string; value
     <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.16)', borderRadius: 14, padding: 12 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
         <Icon name={icon} size={14} color={tokens.onFill} />
-        <Text style={{ fontSize: 12.5, color: tokens.onFill }}>{label}</Text>
+        <Text style={{ fontSize: textSize.sm, color: tokens.onFill }}>{label}</Text>
       </View>
-      <AmountText paisa={value} size={16} weight="600" color={tokens.onFill} numberOfLines={1} style={{ marginTop: 2 }} />
+      <AmountText paisa={value} size="lg" weight="600" color={tokens.onFill} numberOfLines={1} style={{ marginTop: 2 }} />
     </View>
   );
 }
 
-function LoanTotal({
-  label,
-  caption,
-  amount,
-  color,
-  onPress,
-}: {
-  label: string;
-  caption: string;
-  amount: number;
-  color: string;
-  onPress: () => void;
-}) {
+function LoanFigure({ label, amount, color }: { label: string; amount: number; color: string }) {
   const { tokens } = useTheme();
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${label} ${formatTaka(amount)}`}
-      accessibilityHint="লোন পেজ খুলবে"
-      style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.85 : 1 })}>
-      <Card>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-          <View style={{ width: 9, height: 9, borderRadius: 3, backgroundColor: color }} />
-          <Text style={{ fontSize: 13, fontWeight: '600', color: tokens.ink }}>{label}</Text>
-        </View>
-        <AmountText paisa={amount} size={18} color={color} numberOfLines={1} style={{ marginTop: 6 }} />
-        <Text style={{ fontSize: 12, color: tokens.muted, marginTop: 2 }}>{caption}</Text>
-      </Card>
-    </Pressable>
-  );
-}
-
-function TransactionRow({ item }: { item: Activity }) {
-  const { tokens } = useTheme();
-  const router = useRouter();
-  const color = { income: tokens.income, expense: tokens.expense, lent: tokens.lent, borrowed: tokens.borrowed }[item.kind];
-  const open = () => {
-    if (item.kind === 'income') router.push({ pathname: '/add-income', params: { id: item.id } });
-    else if (item.kind === 'expense') router.push({ pathname: '/add-expense', params: { id: item.id } });
-    else router.push({ pathname: '/add-loan', params: { id: item.id } });
-  };
-  return (
-    <Pressable
-      onPress={open}
-      accessibilityRole="button"
-      accessibilityLabel={`${item.title}, ${item.subtitle}, ${formatTaka(Math.abs(item.amount))}`}
-      accessibilityHint="এডিট করতে ট্যাপ করুন"
-      style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 13,
-        paddingVertical: 11,
-        paddingHorizontal: 4,
-        opacity: pressed ? 0.7 : 1,
-      })}>
-      <View
-        style={{
-          width: 42,
-          height: 42,
-          borderRadius: 12,
-          backgroundColor: withAlpha(color, 0.12),
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-        <Icon name={item.icon} size={20} color={color} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '600', color: tokens.ink }}>
-          {item.title}
-        </Text>
-        <Text numberOfLines={1} style={{ fontSize: 12.5, color: tokens.muted }}>
-          {item.subtitle}
-        </Text>
-      </View>
-      <AmountText
-        paisa={item.amount}
-        signed={item.kind === 'income' || item.kind === 'expense'}
-        size={14.5}
-        color={color}
-      />
-    </Pressable>
+    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <View style={{ width: 8, height: 8, borderRadius: 3, backgroundColor: color }} />
+      <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>{label}</Text>
+      <AmountText paisa={amount} weight="700" color={color} numberOfLines={1} style={{ flexShrink: 1 }} />
+    </View>
   );
 }

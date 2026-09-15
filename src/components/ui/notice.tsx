@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { withAlpha } from '@/constants/tokens';
+import { textSize } from '@/constants/typography';
 import { useTheme } from '@/providers/theme-provider';
 
 /** Inline message box for form-level errors or confirmations (shows on web too, unlike Alert). */
@@ -24,7 +25,7 @@ export function Notice({ text, tone = 'error' }: { text: string; tone?: 'error' 
         backgroundColor: withAlpha(color, 0.1),
       }}>
       <Icon name={tone === 'error' ? 'alert-circle-outline' : 'checkmark-circle'} size={18} color={color} />
-      <Text style={{ flex: 1, fontSize: 13.5, lineHeight: 20, color: tokens.ink }}>{text}</Text>
+      <Text style={{ flex: 1, fontSize: textSize.md, lineHeight: 20, color: tokens.ink }}>{text}</Text>
     </View>
   );
 }

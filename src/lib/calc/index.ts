@@ -3,9 +3,9 @@
  * No React, no DB. Everything in integer paisa. Heavily unit-testable.
  */
 
+import { byMonth, rowsInMonth } from '@/lib/calc/month-index';
 import {
   dayKeyOf,
-  isInMonth,
   monthKeyOf,
   monthRangeOfKey,
   nextMonthKey,
@@ -42,16 +42,12 @@ export function outstandingLoansAt(loans: Loan[], direction: LoanDirection, atIs
 
 /** Total income within the current-month scope. */
 export function monthIncome(incomes: Income[], key: MonthKey): number {
-  return active(incomes)
-    .filter((i) => isInMonth(i.date, key))
-    .reduce((sum, i) => sum + i.amount, 0);
+  return rowsInMonth(incomes, key).reduce((sum, i) => sum + i.amount, 0);
 }
 
 /** Total daily expense within the current-month scope. */
 export function monthDailyExpense(expenses: Expense[], key: MonthKey): number {
-  return active(expenses)
-    .filter((e) => isInMonth(e.date, key))
-    .reduce((sum, e) => sum + e.amount, 0);
+  return rowsInMonth(expenses, key).reduce((sum, e) => sum + e.amount, 0);
 }
 
 export interface DayExpenses {
@@ -66,8 +62,7 @@ export interface DayExpenses {
  */
 export function dailyExpenses(expenses: Expense[], key: MonthKey): DayExpenses[] {
   const byDay = new Map<DayKey, Expense[]>();
-  for (const e of active(expenses)) {
-    if (!isInMonth(e.date, key)) continue;
+  for (const e of rowsInMonth(expenses, key)) {
     const day = dayKeyOf(e.date);
     const list = byDay.get(day);
     if (list) list.push(e);
@@ -82,6 +77,22 @@ export function dailyExpenses(expenses: Expense[], key: MonthKey): DayExpenses[]
       ),
     }))
     .sort((a, b) => b.day.localeCompare(a.day));
+}
+
+export interface CategoryTotal {
+  category: string;
+  amount: number;
+}
+
+/** Daily expense of a month per category, largest first. The amounts add up to monthDailyExpense(). */
+export function categoryTotals(expenses: Expense[], key: MonthKey): CategoryTotal[] {
+  const totals = new Map<string, number>();
+  for (const e of rowsInMonth(expenses, key)) {
+    totals.set(e.category, (totals.get(e.category) ?? 0) + e.amount);
+  }
+  return [...totals.entries()]
+    .map(([category, amount]) => ({ category, amount }))
+    .sort((a, b) => b.amount - a.amount);
 }
 
 export interface TheoreticalInput {
@@ -205,7 +216,9 @@ export interface MonthChainInput {
 export function closedMonthChain(input: MonthChainInput): MonthFigures[] {
   const { currentKey, incomes, expenses, loans, summaries, practicalFor } = input;
   const keys = [
-    ...[...active(incomes), ...active(expenses), ...active(loans)].map((r) => monthKeyOf(new Date(r.date))),
+    ...byMonth(incomes).keys(),
+    ...byMonth(expenses).keys(),
+    ...byMonth(loans).keys(),
     ...active(summaries).map((s) => monthKeyOf(new Date(s.year, s.month - 1, 1))),
   ];
   if (keys.length === 0) return [];

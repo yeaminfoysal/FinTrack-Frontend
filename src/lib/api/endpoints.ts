@@ -1,6 +1,6 @@
 /** Typed endpoint helpers. UI reads from SQLite; these feed the sync layer/auth. */
 import { api } from '@/lib/api/client';
-import type { Expense, Income, Loan, MonthlySummary } from '@/lib/types';
+import type { Expense, Income, Loan, MonthlySummary, PracticalBalance } from '@/lib/types';
 
 export interface AuthResponse {
   accessToken: string;
@@ -33,17 +33,32 @@ export const UsersApi = {
     api.patch('/users/me/settings', settings).then((r) => r.data),
 };
 
+/** A record as it goes to the server: no syncStatus and no null fields (the DTOs reject both). */
+export type OutgoingRecord<T> = Partial<Omit<T, 'syncStatus'>>;
+
 export interface SyncPushPayload {
-  incomes?: Income[];
-  expenses?: Expense[];
-  loans?: Loan[];
-  monthlySummaries?: MonthlySummary[];
+  incomes?: OutgoingRecord<Income>[];
+  expenses?: OutgoingRecord<Expense>[];
+  loans?: OutgoingRecord<Loan>[];
+  monthlySummaries?: OutgoingRecord<MonthlySummary>[];
+  practicalBalances?: OutgoingRecord<PracticalBalance>[];
+}
+
+/** Rows the server wrote after the cursor, as sent — the sync store normalizes them. */
+export interface SyncPullResponse {
+  serverTime: string;
+  incomes?: Record<string, unknown>[];
+  expenses?: Record<string, unknown>[];
+  loans?: Record<string, unknown>[];
+  monthlySummaries?: Record<string, unknown>[];
+  practicalBalances?: Record<string, unknown>[];
 }
 
 export const SyncApi = {
-  push: (payload: SyncPushPayload) => api.post('/sync/push', payload).then((r) => r.data),
+  push: (payload: SyncPushPayload) =>
+    api.post<{ serverTime: string }>('/sync/push', payload).then((r) => r.data),
   pull: (since?: string) =>
-    api.get('/sync/pull', { params: since ? { since } : {} }).then((r) => r.data),
+    api.get<SyncPullResponse>('/sync/pull', { params: since ? { since } : {} }).then((r) => r.data),
 };
 
 export const HealthApi = {

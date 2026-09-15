@@ -1,14 +1,14 @@
 import { isAxiosError } from 'axios';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { AuthShell } from '@/components/auth-shell';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Notice } from '@/components/ui/notice';
-import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
+import { textSize } from '@/constants/typography';
 import { AuthApi } from '@/lib/api/endpoints';
 import { localDigits, toLatinDigits } from '@/lib/digits';
 import { useTheme } from '@/providers/theme-provider';
@@ -243,7 +243,7 @@ function TextLink({ label, onPress, disabled }: { label: string; onPress: () => 
       accessibilityState={{ disabled: !!disabled }}
       hitSlop={10}
       style={{ paddingVertical: 6 }}>
-      <Text style={{ fontSize: 13.5, fontWeight: '600', color: disabled ? tokens.muted : tokens.primary }}>{label}</Text>
+      <Text style={{ fontSize: textSize.md, fontWeight: '600', color: disabled ? tokens.muted : tokens.primary }}>{label}</Text>
     </Pressable>
   );
 }

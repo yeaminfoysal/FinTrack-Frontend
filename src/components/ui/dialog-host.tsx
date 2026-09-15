@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Modal, View } from 'react-native';
+import { Modal, Pressable, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
-import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
+import { textSize } from '@/constants/typography';
 import { useTheme } from '@/providers/theme-provider';
 import { useUiStore, type ConfirmDialog } from '@/stores/ui';
 
@@ -39,11 +39,11 @@ export function DialogHost() {
             padding: 20,
             gap: 8,
           }}>
-          <Text accessibilityRole="header" style={{ fontSize: 17, fontWeight: '700', color: tokens.ink }}>
+          <Text accessibilityRole="header" style={{ fontSize: textSize.lg, fontWeight: '700', color: tokens.ink }}>
             {shown?.title}
           </Text>
           {shown?.message ? (
-            <Text style={{ fontSize: 14, lineHeight: 22, color: tokens.muted }}>{shown.message}</Text>
+            <Text style={{ fontSize: textSize.md, lineHeight: 22, color: tokens.muted }}>{shown.message}</Text>
           ) : null}
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
             <Button
