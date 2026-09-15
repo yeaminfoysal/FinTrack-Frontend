@@ -1,40 +1,106 @@
+/**
+ * Sync with the backend (offline-first): push PENDING records, pull server changes
+ * (Last-Write-Wins) and expose a status the UI can show — syncing, offline, error,
+ * and when the last successful sync happened.
+ */
+import { isAxiosError } from 'axios';
 import { create } from 'zustand';
 
 import { SyncApi, UsersApi } from '@/lib/api/endpoints';
 import { getDb } from '@/lib/db';
-import { getMeta, setMeta, getPendingRecords, markAsSynced, upsertIncome, upsertExpense, upsertLoan, upsertSummary } from '@/lib/db/repo';
-import { useDataStore } from '@/stores/data';
+import {
+  getMeta,
+  getPendingRecords,
+  markAsSynced,
+  setMeta,
+  upsertExpense,
+  upsertIncome,
+  upsertLoan,
+  upsertSummary,
+} from '@/lib/db/repo';
+import { DEMO_OWNER, useDataStore } from '@/stores/data';
+
+export type SyncPhase = 'idle' | 'syncing' | 'offline' | 'error';
 
 interface SyncState {
   isSyncing: boolean;
+  status: SyncPhase;
+  /** Server time of the last successful push or pull, shown to the user. */
+  lastSyncedAt: string | null;
+  lastError: string | null;
   pull: () => Promise<void>;
   push: () => Promise<void>;
+  /** Pull, then push — the "sync now" / pull-to-refresh action. */
+  syncNow: () => Promise<void>;
 }
 
-const META_SYNC_KEY = 'lastSyncTime';
+/** Pull cursor. Only a successful pull may move it, otherwise changes from other devices get skipped. */
+const PULL_CURSOR_KEY = 'lastSyncTime';
+const LAST_SYNCED_KEY = 'lastSyncedAt';
+
+function readValue(key: string): string | null {
+  try {
+    const db = getDb();
+    if (db) return getMeta(db, key) || null;
+    return typeof localStorage !== 'undefined' ? localStorage.getItem(key) || null : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeValue(key: string, value: string): void {
+  try {
+    const db = getDb();
+    if (db) setMeta(db, key, value);
+    else if (typeof localStorage !== 'undefined') localStorage.setItem(key, value);
+  } catch {
+    // not fatal — the next successful sync writes it again
+  }
+}
+
+const isDemo = () => useDataStore.getState().ownerEmail === DEMO_OWNER;
+
+function failure(err: unknown): Pick<SyncState, 'status' | 'lastError'> {
+  if (isAxiosError(err) && !err.response) return { status: 'offline', lastError: null };
+  const message = isAxiosError(err)
+    ? `HTTP ${err.response?.status ?? '?'}`
+    : err instanceof Error
+      ? err.message
+      : String(err);
+  return { status: 'error', lastError: message };
+}
+
+/** A push requested while another sync held the lock; it runs once that sync ends. */
+let pushQueued = false;
+
+/** Uploads a profile edited on this device (name, opening savings) before the server copy is pulled. */
+async function pushProfileIfDirty(): Promise<void> {
+  const { profileDirty, profile, markProfileSynced } = useDataStore.getState();
+  if (!profileDirty) return;
+  await UsersApi.updateName(profile.name);
+  await UsersApi.updateSettings({ openingSavings: profile.openingSavings });
+  markProfileSynced();
+}
 
 export const useSyncStore = create<SyncState>((set, get) => ({
   isSyncing: false,
+  status: 'idle',
+  lastSyncedAt: readValue(LAST_SYNCED_KEY),
+  lastError: null,
 
   pull: async () => {
-    if (get().isSyncing) return;
+    // The demo dataset lives only on this device; its fake tokens would sign the user out.
+    if (isDemo() || get().isSyncing) return;
     const db = getDb();
+    set({ isSyncing: true, status: 'syncing' });
 
     try {
-      set({ isSyncing: true });
+      await pushProfileIfDirty();
 
-      // Get lastSyncTime; use undefined (not '') so the API omits the param entirely
-      let lastSyncTime: string | undefined;
-      if (db) {
-        const val = getMeta(db, META_SYNC_KEY);
-        lastSyncTime = val || undefined;
-      } else if (typeof localStorage !== 'undefined') {
-        const val = localStorage.getItem(META_SYNC_KEY);
-        lastSyncTime = val || undefined;
-      }
-
-      console.log('[sync] pull starting, since:', lastSyncTime ?? '(full pull)');
-      const response = await SyncApi.pull(lastSyncTime);
+      // Use undefined (not '') so the API omits the param entirely
+      const since = readValue(PULL_CURSOR_KEY) ?? undefined;
+      console.log('[sync] pull starting, since:', since ?? '(full pull)');
+      const response = await SyncApi.pull(since);
       console.log('[sync] pull response:', {
         incomes: response.incomes?.length ?? 0,
         expenses: response.expenses?.length ?? 0,
@@ -50,7 +116,6 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           (response.loans ?? []).forEach((l: any) => upsertLoan(db, { ...l, syncStatus: 'SYNCED' }));
           (response.monthlySummaries ?? []).forEach((s: any) => upsertSummary(db, { ...s, syncStatus: 'SYNCED' }));
         });
-        setMeta(db, META_SYNC_KEY, response.serverTime);
         useDataStore.getState().reloadFromDb();
       } else {
         // Web fallback: merge into Zustand state directly
@@ -66,64 +131,74 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           loans: merge(s.loans, response.loans),
           summaries: merge(s.summaries, response.monthlySummaries),
         });
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem(META_SYNC_KEY, response.serverTime);
-        }
       }
+      writeValue(PULL_CURSOR_KEY, response.serverTime);
 
-      // Also sync user profile (openingSavings, currency, timezone) from backend.
-      // This ensures cross-device consistency for profile fields that aren't in
-      // the sync tables (income/expense/loan/summary).
-      try {
-        const me = await UsersApi.me();
-        if (me) {
-          const profilePatch: Record<string, any> = {};
-          if (me.openingSavings !== undefined) profilePatch.openingSavings = Number(me.openingSavings);
-          if (me.currency) profilePatch.currency = me.currency;
-          if (me.timezone) profilePatch.timezone = me.timezone;
-          if (me.name) profilePatch.name = me.name;
-          if (me.email) profilePatch.email = me.email;
-          if (Object.keys(profilePatch).length > 0) {
-            useDataStore.getState().updateProfile(profilePatch);
+      // Profile fields (openingSavings, currency, timezone) aren't in the sync tables.
+      // A profile edited here and not uploaded yet wins over the server copy.
+      if (!useDataStore.getState().profileDirty) {
+        try {
+          const me = await UsersApi.me();
+          if (me) {
+            const profilePatch: Record<string, any> = {};
+            if (me.openingSavings !== undefined) profilePatch.openingSavings = Number(me.openingSavings);
+            if (me.currency) profilePatch.currency = me.currency;
+            if (me.timezone) profilePatch.timezone = me.timezone;
+            if (me.name) profilePatch.name = me.name;
+            if (me.email) profilePatch.email = me.email;
+            if (Object.keys(profilePatch).length > 0) {
+              useDataStore.getState().updateProfile(profilePatch);
+            }
           }
+        } catch (profileErr: any) {
+          console.warn('[sync] profile fetch failed (non-critical):', profileErr?.message);
         }
-      } catch (profileErr: any) {
-        console.warn('[sync] profile fetch failed (non-critical):', profileErr?.message);
       }
 
+      writeValue(LAST_SYNCED_KEY, response.serverTime);
+      set({ status: 'idle', lastSyncedAt: response.serverTime, lastError: null });
       console.log('[sync] pull complete');
     } catch (err: any) {
       console.warn('Pull sync failed:', err?.response?.data ?? err?.message ?? err);
+      set(failure(err));
     } finally {
       set({ isSyncing: false });
     }
+    // Offline the push would fail the same way; the next sync retries it.
+    if (get().status === 'offline') return;
     // Writes made while the pull held the lock (e.g. month-close on app open) skipped their push.
-    void get().push();
+    await get().push();
   },
 
   push: async () => {
-    if (get().isSyncing) return;
+    if (isDemo()) return;
+    if (get().isSyncing) {
+      pushQueued = true;
+      return;
+    }
     const db = getDb();
+    const s = useDataStore.getState();
+    const pending = db
+      ? getPendingRecords(db)
+      : {
+          incomes: s.incomes.filter((i) => i.syncStatus === 'PENDING'),
+          expenses: s.expenses.filter((e) => e.syncStatus === 'PENDING'),
+          loans: s.loans.filter((l) => l.syncStatus === 'PENDING'),
+          monthlySummaries: s.summaries.filter((m) => m.syncStatus === 'PENDING'),
+        };
 
+    if (
+      pending.incomes.length === 0 &&
+      pending.expenses.length === 0 &&
+      pending.loans.length === 0 &&
+      pending.monthlySummaries.length === 0
+    ) {
+      return; // Nothing to push
+    }
+
+    pushQueued = false;
+    set({ isSyncing: true, status: 'syncing' });
     try {
-      set({ isSyncing: true });
-      const s = useDataStore.getState();
-      const pending = db ? getPendingRecords(db) : {
-        incomes: s.incomes.filter((i) => i.syncStatus === 'PENDING'),
-        expenses: s.expenses.filter((e) => e.syncStatus === 'PENDING'),
-        loans: s.loans.filter((l) => l.syncStatus === 'PENDING'),
-        monthlySummaries: s.summaries.filter((m) => m.syncStatus === 'PENDING'),
-      };
-
-      if (
-        pending.incomes.length === 0 &&
-        pending.expenses.length === 0 &&
-        pending.loans.length === 0 &&
-        pending.monthlySummaries.length === 0
-      ) {
-        return; // Nothing to push
-      }
-
       console.log('[sync] push starting, pending:', {
         incomes: pending.incomes.length,
         expenses: pending.expenses.length,
@@ -149,16 +224,14 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         monthlySummaries: pending.monthlySummaries.map(strip),
       };
 
-      console.log('[sync] push payload sample:', JSON.stringify(payload.incomes[0] ?? payload.expenses[0] ?? payload.loans[0] ?? '(empty)'));
-
       const response = await SyncApi.push(payload);
       console.log('[sync] push success:', response);
 
       const idsToMark = {
-        incomes: new Set(pending.incomes.map(i => i.id)),
-        expenses: new Set(pending.expenses.map(e => e.id)),
-        loans: new Set(pending.loans.map(l => l.id)),
-        summaries: new Set(pending.monthlySummaries.map(s => s.id)),
+        incomes: new Set(pending.incomes.map((i) => i.id)),
+        expenses: new Set(pending.expenses.map((e) => e.id)),
+        loans: new Set(pending.loans.map((l) => l.id)),
+        summaries: new Set(pending.monthlySummaries.map((m) => m.id)),
       };
 
       if (db) {
@@ -168,26 +241,32 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           loans: Array.from(idsToMark.loans),
           summaries: Array.from(idsToMark.summaries),
         });
-        setMeta(db, META_SYNC_KEY, response.serverTime);
         useDataStore.getState().reloadFromDb();
       } else {
+        const latest = useDataStore.getState();
         const mark = (arr: any[], ids: Set<string>) =>
           arr.map((item) => (ids.has(item.id) ? { ...item, syncStatus: 'SYNCED' } : item));
 
         useDataStore.setState({
-          incomes: mark(s.incomes, idsToMark.incomes),
-          expenses: mark(s.expenses, idsToMark.expenses),
-          loans: mark(s.loans, idsToMark.loans),
-          summaries: mark(s.summaries, idsToMark.summaries),
+          incomes: mark(latest.incomes, idsToMark.incomes),
+          expenses: mark(latest.expenses, idsToMark.expenses),
+          loans: mark(latest.loans, idsToMark.loans),
+          summaries: mark(latest.summaries, idsToMark.summaries),
         });
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem(META_SYNC_KEY, response.serverTime);
-        }
       }
+
+      writeValue(LAST_SYNCED_KEY, response.serverTime);
+      set({ status: 'idle', lastSyncedAt: response.serverTime, lastError: null });
     } catch (err: any) {
       console.warn('Push sync failed:', err?.response?.data ?? err?.message ?? err);
+      set(failure(err));
     } finally {
       set({ isSyncing: false });
     }
+    if (pushQueued && get().status === 'idle') await get().push();
+  },
+
+  syncNow: async () => {
+    await get().pull();
   },
 }));

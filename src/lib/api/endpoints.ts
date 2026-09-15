@@ -21,7 +21,9 @@ export const AuthApi = {
     api.post<{ resetToken: string }>('/auth/verify-reset-code', { email, code }).then((r) => r.data),
   resetPassword: (token: string, password: string) =>
     api.post<{ success: boolean }>('/auth/reset-password', { token, password }).then((r) => r.data),
-  logout: () => api.post('/auth/logout').then((r) => r.data),
+  /** Revokes the refresh token on the server. Short timeout so signing out never hangs offline. */
+  logout: (refreshToken: string) =>
+    api.post('/auth/logout', { refreshToken }, { timeout: 5000 }).then((r) => r.data),
 };
 
 export const UsersApi = {

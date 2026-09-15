@@ -1,8 +1,11 @@
 /**
- * FinTrack design tokens — mirrored 1:1 from FinTrackPrototype.html.
- * Colors are applied via inline style (the prototype is inline-style based)
- * so the light/dark theme can switch instantly at runtime. Layout still uses
- * NativeWind className where convenient.
+ * FinTrack design tokens — based on FinTrackPrototype.html. Colors are applied via
+ * inline style so the light/dark theme can switch instantly at runtime.
+ *
+ * Contrast (WCAG AA, 4.5:1 for normal text): the text colors pass against bg,
+ * surface and surface2 of their own theme. Filled surfaces that carry text
+ * (buttons, hero cards, loan totals) use the `*Fill` colors with `onFill` text,
+ * which pass in both themes.
  */
 
 export type ThemeTokens = {
@@ -20,6 +23,19 @@ export type ThemeTokens = {
   lent: string;
   borrowed: string;
   chip: string;
+  primaryFill: string;
+  expenseFill: string;
+  lentFill: string;
+  borrowedFill: string;
+  onFill: string;
+};
+
+const fills = {
+  primaryFill: '#0E7A52',
+  expenseFill: '#C84C36',
+  lentFill: '#2C6BE0',
+  borrowedFill: '#A76619',
+  onFill: '#FFFFFF',
 };
 
 export const lightTokens: ThemeTokens = {
@@ -32,11 +48,12 @@ export const lightTokens: ThemeTokens = {
   primary: '#0E7A52',
   primary2: '#10976A',
   onPrimary: '#EAFBF1',
-  income: '#138A57',
-  expense: '#D9533B',
-  lent: '#2C6BE0',
-  borrowed: '#C77A1E',
+  income: '#117D4F',
+  expense: '#BC4833',
+  lent: '#2B68DA',
+  borrowed: '#9C6018',
   chip: '#EAF2EC',
+  ...fills,
 };
 
 export const darkTokens: ThemeTokens = {
@@ -54,6 +71,7 @@ export const darkTokens: ThemeTokens = {
   lent: '#5E94F7',
   borrowed: '#E0A94E',
   chip: '#16241D',
+  ...fills,
 };
 
 export type ThemeMode = 'light' | 'dark';

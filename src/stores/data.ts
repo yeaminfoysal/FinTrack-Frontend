@@ -63,7 +63,10 @@ export interface AddLoanInput {
   note?: string | null;
 }
 
-const DEMO_OWNER = '__demo__';
+/** ownerEmail of the offline demo dataset. Demo data is never synced. */
+export const DEMO_OWNER = '__demo__';
+
+type PracticalPatch = Partial<Pick<DataState, 'practicals'>>;
 
 function autoAdjustPractical(s: DataState, dateIso: string, delta: number): Pick<DataState, 'practicals'> | null {
   if (delta === 0) return null;
@@ -99,6 +102,22 @@ function adjustForEdit(
   return autoAdjustPractical(undone ? { ...s, ...undone } : s, newIso, newDelta) ?? undone;
 }
 
+/** Cash a loan keeps out of (lent) or brings into (borrowed) the user's hands while it's active. */
+function loanCash(loan: Pick<Loan, 'direction' | 'amount' | 'status'>): number {
+  if (loan.status !== 'ACTIVE') return 0;
+  return loan.direction === 'LENT' ? -loan.amount : loan.amount;
+}
+
+/** Records the server hasn't confirmed yet — drives the sync badge and the logout warning. */
+export function countPending(s: Pick<DataState, 'incomes' | 'expenses' | 'loans' | 'summaries'>): number {
+  const lists: { syncStatus: string }[][] = [s.incomes, s.expenses, s.loans, s.summaries];
+  let pending = 0;
+  for (const list of lists) {
+    for (const record of list) if (record.syncStatus !== 'SYNCED') pending += 1;
+  }
+  return pending;
+}
+
 interface DataState {
   ready: boolean;
   ownerEmail: string | null;
@@ -109,6 +128,11 @@ interface DataState {
   summaries: MonthlySummary[];
   practicals: Record<string, PracticalBalance>;
   profile: UserProfile;
+  /** Name or opening savings edited on this device and not yet sent to the server. */
+  profileDirty: boolean;
+  /** Pre-selected in the add forms: the category / source used last time. */
+  lastExpenseCategory: string | null;
+  lastIncomeSource: string | null;
 
   init: () => void;
   /** Reloads all data from SQLite into memory (used after a background sync pull) */
@@ -124,20 +148,32 @@ interface DataState {
   prepareForUser: (email: string, patch?: Partial<UserProfile>) => void;
   setMonthKey: (key: MonthKey) => void;
 
-  addIncome: (input: AddIncomeInput) => void;
+  /** Returns the new record's id (e.g. for an undo). */
+  addIncome: (input: AddIncomeInput) => string;
   updateIncome: (id: string, patch: Partial<AddIncomeInput>) => void;
   deleteIncome: (id: string) => void;
+  /** Undoes a delete. */
+  restoreIncome: (id: string) => void;
 
-  addExpense: (input: AddExpenseInput) => void;
+  addExpense: (input: AddExpenseInput) => string;
   updateExpense: (id: string, patch: Partial<AddExpenseInput>) => void;
   deleteExpense: (id: string) => void;
+  restoreExpense: (id: string) => void;
 
-  addLoan: (input: AddLoanInput) => void;
+  addLoan: (input: AddLoanInput) => string;
+  updateLoan: (id: string, patch: Partial<AddLoanInput>) => void;
   settleLoan: (id: string, settledDate?: string) => void;
+  /** Marks a settled loan active again (undo of settle). */
+  unsettleLoan: (id: string) => void;
   deleteLoan: (id: string) => void;
+  restoreLoan: (id: string) => void;
 
   setPractical: (monthKey: MonthKey, parts: { cash: number; bank: number; mfs: number }) => void;
+  /** Applies profile values without marking them for upload (server data, sign-in). */
   updateProfile: (patch: Partial<UserProfile>) => void;
+  /** A profile edit by the user: saved locally and sent to the server on the next sync. */
+  editProfile: (patch: Partial<Pick<UserProfile, 'name' | 'openingSavings'>>) => void;
+  markProfileSynced: () => void;
 
   dashboard: (monthKey?: MonthKey) => DashboardSnapshot;
 }
@@ -151,14 +187,43 @@ function withDb(fn: (db: NonNullable<ReturnType<typeof getDb>>) => void): void {
       console.warn('[data] db write failed:', e);
     }
   }
-  
+
   // Trigger sync in background without circular dependency (works for both SQLite and Web)
   setTimeout(() => {
     try {
-      const { useSyncStore } = require('@/stores/sync');
-      useSyncStore.getState().push();
-    } catch (err) {}
+      syncStore().getState().push();
+    } catch {
+      // sync store unavailable — the next sync picks the change up
+    }
   }, 500);
+}
+
+/** The sync store, loaded lazily: it imports this store, so a static import would be circular. */
+function syncStore(): (typeof import('@/stores/sync'))['useSyncStore'] {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('@/stores/sync').useSyncStore;
+}
+
+/** Starts a full sync (pull + push) shortly. */
+function requestSync(): void {
+  setTimeout(() => {
+    try {
+      void syncStore().getState().syncNow();
+    } catch {
+      // sync store unavailable — the next sync picks the change up
+    }
+  }, 300);
+}
+
+/** Meta write that isn't a record change (no push). */
+function writeMeta(key: string, value: string): void {
+  const db = getDb();
+  if (!db) return;
+  try {
+    setMeta(db, key, value);
+  } catch (e) {
+    console.warn('[data] meta write failed:', e);
+  }
 }
 
 const FIGURE_KEYS = [
@@ -189,6 +254,9 @@ export const useDataStore = create<DataState>((set, get) => ({
   summaries: [],
   practicals: {},
   profile: DEFAULT_PROFILE,
+  profileDirty: false,
+  lastExpenseCategory: null,
+  lastIncomeSource: null,
 
   // Load whatever is already stored for this device/account. Never auto-seeds:
   // a real (non-demo) account starts empty and fills via its own entries/sync.
@@ -211,6 +279,9 @@ export const useDataStore = create<DataState>((set, get) => ({
         summaries: getSummaries(db),
         practicals,
         profile: profileRaw ? (JSON.parse(profileRaw) as UserProfile) : DEFAULT_PROFILE,
+        profileDirty: getMeta(db, 'profileDirty') === '1',
+        lastExpenseCategory: getMeta(db, 'lastExpenseCategory') || null,
+        lastIncomeSource: getMeta(db, 'lastIncomeSource') || null,
       });
       return;
     }
@@ -307,6 +378,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       seed.practicals.forEach((r) => upsertPractical(db, r));
       setMeta(db, 'profile', JSON.stringify(seed.profile));
       setMeta(db, 'ownerEmail', DEMO_OWNER);
+      setMeta(db, 'profileDirty', '0');
     });
     set({
       ready: true,
@@ -320,6 +392,7 @@ export const useDataStore = create<DataState>((set, get) => ({
         return acc;
       }, {}),
       profile: seed.profile,
+      profileDirty: false,
     });
   },
 
@@ -336,9 +409,14 @@ export const useDataStore = create<DataState>((set, get) => ({
       setMeta(db, 'profile', JSON.stringify(nextProfile));
       setMeta(db, 'ownerEmail', email);
       setMeta(db, 'lastSyncTime', '');
+      setMeta(db, 'lastSyncedAt', '');
+      setMeta(db, 'profileDirty', '0');
+      setMeta(db, 'lastExpenseCategory', '');
+      setMeta(db, 'lastIncomeSource', '');
     });
     if (typeof localStorage !== 'undefined') {
       localStorage.removeItem('lastSyncTime');
+      localStorage.removeItem('lastSyncedAt');
     }
     set({
       ready: true,
@@ -349,6 +427,9 @@ export const useDataStore = create<DataState>((set, get) => ({
       summaries: [],
       practicals: {},
       profile: nextProfile,
+      profileDirty: false,
+      lastExpenseCategory: null,
+      lastIncomeSource: null,
     });
   },
 
@@ -364,18 +445,23 @@ export const useDataStore = create<DataState>((set, get) => ({
     };
     set((s) => ({
       incomes: [rec, ...s.incomes],
+      lastIncomeSource: rec.source,
       ...(autoAdjustPractical(s, rec.date, rec.amount) || {}),
     }));
-    withDb((db) => upsertIncome(db, rec));
+    withDb((db) => {
+      upsertIncome(db, rec);
+      setMeta(db, 'lastIncomeSource', rec.source);
+    });
+    return rec.id;
   },
   updateIncome: (id, patch) => {
     let updated: Income | undefined;
-    let adj: any = {};
+    let adj: PracticalPatch = {};
     set((s) => {
       const incomes = s.incomes.map((i) => {
         if (i.id !== id) return i;
         updated = { ...i, ...patch, updatedAt: nowIso(), syncStatus: 'PENDING' };
-        adj = adjustForEdit(s, i.date, i.amount, updated.date, updated.amount) || {};
+        adj = adjustForEdit(s, i.date, i.amount, updated.date, updated.amount) ?? {};
         return updated;
       });
       return { incomes, ...adj };
@@ -384,17 +470,31 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
   deleteIncome: (id) => {
     let removed: Income | undefined;
-    let adj: any = {};
+    let adj: PracticalPatch = {};
     set((s) => {
       const incomes = s.incomes.map((i) => {
-        if (i.id !== id) return i;
+        if (i.id !== id || i.isDeleted) return i;
         removed = { ...i, isDeleted: true, deletedAt: nowIso(), updatedAt: nowIso(), syncStatus: 'PENDING' };
-        adj = autoAdjustPractical(s, removed.date, -removed.amount) || {};
+        adj = autoAdjustPractical(s, removed.date, -removed.amount) ?? {};
         return removed;
       });
       return { incomes, ...adj };
     });
     if (removed) withDb((db) => upsertIncome(db, removed!));
+  },
+  restoreIncome: (id) => {
+    let restored: Income | undefined;
+    let adj: PracticalPatch = {};
+    set((s) => {
+      const incomes = s.incomes.map((i) => {
+        if (i.id !== id || !i.isDeleted) return i;
+        restored = { ...i, isDeleted: false, deletedAt: null, updatedAt: nowIso(), syncStatus: 'PENDING' };
+        adj = autoAdjustPractical(s, restored.date, restored.amount) ?? {};
+        return restored;
+      });
+      return { incomes, ...adj };
+    });
+    if (restored) withDb((db) => upsertIncome(db, restored!));
   },
 
   addExpense: (input) => {
@@ -407,18 +507,23 @@ export const useDataStore = create<DataState>((set, get) => ({
     };
     set((s) => ({
       expenses: [rec, ...s.expenses],
+      lastExpenseCategory: rec.category,
       ...(autoAdjustPractical(s, rec.date, -rec.amount) || {}),
     }));
-    withDb((db) => upsertExpense(db, rec));
+    withDb((db) => {
+      upsertExpense(db, rec);
+      setMeta(db, 'lastExpenseCategory', rec.category);
+    });
+    return rec.id;
   },
   updateExpense: (id, patch) => {
     let updated: Expense | undefined;
-    let adj: any = {};
+    let adj: PracticalPatch = {};
     set((s) => {
       const expenses = s.expenses.map((e) => {
         if (e.id !== id) return e;
         updated = { ...e, ...patch, updatedAt: nowIso(), syncStatus: 'PENDING' };
-        adj = adjustForEdit(s, e.date, -e.amount, updated.date, -updated.amount) || {};
+        adj = adjustForEdit(s, e.date, -e.amount, updated.date, -updated.amount) ?? {};
         return updated;
       });
       return { expenses, ...adj };
@@ -427,17 +532,31 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
   deleteExpense: (id) => {
     let removed: Expense | undefined;
-    let adj: any = {};
+    let adj: PracticalPatch = {};
     set((s) => {
       const expenses = s.expenses.map((e) => {
-        if (e.id !== id) return e;
+        if (e.id !== id || e.isDeleted) return e;
         removed = { ...e, isDeleted: true, deletedAt: nowIso(), updatedAt: nowIso(), syncStatus: 'PENDING' };
-        adj = autoAdjustPractical(s, removed.date, removed.amount) || {};
+        adj = autoAdjustPractical(s, removed.date, removed.amount) ?? {};
         return removed;
       });
       return { expenses, ...adj };
     });
     if (removed) withDb((db) => upsertExpense(db, removed!));
+  },
+  restoreExpense: (id) => {
+    let restored: Expense | undefined;
+    let adj: PracticalPatch = {};
+    set((s) => {
+      const expenses = s.expenses.map((e) => {
+        if (e.id !== id || !e.isDeleted) return e;
+        restored = { ...e, isDeleted: false, deletedAt: null, updatedAt: nowIso(), syncStatus: 'PENDING' };
+        adj = autoAdjustPractical(s, restored.date, -restored.amount) ?? {};
+        return restored;
+      });
+      return { expenses, ...adj };
+    });
+    if (restored) withDb((db) => upsertExpense(db, restored!));
   },
 
   addLoan: (input) => {
@@ -451,21 +570,33 @@ export const useDataStore = create<DataState>((set, get) => ({
       status: 'ACTIVE',
       settledDate: null,
     };
-    set((s) => {
-      const delta = rec.direction === 'LENT' ? -rec.amount : rec.amount;
-      return {
-        loans: [rec, ...s.loans],
-        ...(autoAdjustPractical(s, rec.date, delta) || {}),
-      };
-    });
+    set((s) => ({
+      loans: [rec, ...s.loans],
+      ...(autoAdjustPractical(s, rec.date, loanCash(rec)) || {}),
+    }));
     withDb((db) => upsertLoan(db, rec));
+    return rec.id;
   },
-  settleLoan: (id, settledDate) => {
+  updateLoan: (id, patch) => {
     let updated: Loan | undefined;
-    let adj: any = {};
+    let adj: PracticalPatch = {};
     set((s) => {
       const loans = s.loans.map((l) => {
         if (l.id !== id) return l;
+        updated = { ...l, ...patch, updatedAt: nowIso(), syncStatus: 'PENDING' };
+        adj = adjustForEdit(s, l.date, loanCash(l), updated.date, loanCash(updated)) ?? {};
+        return updated;
+      });
+      return { loans, ...adj };
+    });
+    if (updated) withDb((db) => upsertLoan(db, updated!));
+  },
+  settleLoan: (id, settledDate) => {
+    let updated: Loan | undefined;
+    let adj: PracticalPatch = {};
+    set((s) => {
+      const loans = s.loans.map((l) => {
+        if (l.id !== id || l.status !== 'ACTIVE') return l;
         updated = {
           ...l,
           status: 'SETTLED',
@@ -473,8 +604,21 @@ export const useDataStore = create<DataState>((set, get) => ({
           updatedAt: nowIso(),
           syncStatus: 'PENDING',
         };
-        const delta = l.direction === 'LENT' ? l.amount : -l.amount;
-        adj = autoAdjustPractical(s, updated.date, delta) || {};
+        adj = autoAdjustPractical(s, l.date, -loanCash(l)) ?? {};
+        return updated;
+      });
+      return { loans, ...adj };
+    });
+    if (updated) withDb((db) => upsertLoan(db, updated!));
+  },
+  unsettleLoan: (id) => {
+    let updated: Loan | undefined;
+    let adj: PracticalPatch = {};
+    set((s) => {
+      const loans = s.loans.map((l) => {
+        if (l.id !== id || l.status !== 'SETTLED') return l;
+        updated = { ...l, status: 'ACTIVE', settledDate: null, updatedAt: nowIso(), syncStatus: 'PENDING' };
+        adj = autoAdjustPractical(s, l.date, loanCash(updated)) ?? {};
         return updated;
       });
       return { loans, ...adj };
@@ -483,21 +627,31 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
   deleteLoan: (id) => {
     let removed: Loan | undefined;
-    let adj: any = {};
+    let adj: PracticalPatch = {};
     set((s) => {
       const loans = s.loans.map((l) => {
-        if (l.id !== id) return l;
+        if (l.id !== id || l.isDeleted) return l;
         removed = { ...l, isDeleted: true, deletedAt: nowIso(), updatedAt: nowIso(), syncStatus: 'PENDING' };
-        let delta = 0;
-        if (l.status === 'ACTIVE') {
-          delta = l.direction === 'LENT' ? l.amount : -l.amount;
-        }
-        adj = autoAdjustPractical(s, removed.date, delta) || {};
+        adj = autoAdjustPractical(s, l.date, -loanCash(l)) ?? {};
         return removed;
       });
       return { loans, ...adj };
     });
     if (removed) withDb((db) => upsertLoan(db, removed!));
+  },
+  restoreLoan: (id) => {
+    let restored: Loan | undefined;
+    let adj: PracticalPatch = {};
+    set((s) => {
+      const loans = s.loans.map((l) => {
+        if (l.id !== id || !l.isDeleted) return l;
+        restored = { ...l, isDeleted: false, deletedAt: null, updatedAt: nowIso(), syncStatus: 'PENDING' };
+        adj = autoAdjustPractical(s, l.date, loanCash(l)) ?? {};
+        return restored;
+      });
+      return { loans, ...adj };
+    });
+    if (restored) withDb((db) => upsertLoan(db, restored!));
   },
 
   setPractical: (monthKey, parts) => {
@@ -517,6 +671,19 @@ export const useDataStore = create<DataState>((set, get) => ({
     const next = { ...get().profile, ...patch };
     set({ profile: next });
     withDb((db) => setMeta(db, 'profile', JSON.stringify(next)));
+  },
+
+  editProfile: (patch) => {
+    const next = { ...get().profile, ...patch };
+    set({ profile: next, profileDirty: true });
+    writeMeta('profile', JSON.stringify(next));
+    writeMeta('profileDirty', '1');
+    requestSync();
+  },
+
+  markProfileSynced: () => {
+    set({ profileDirty: false });
+    writeMeta('profileDirty', '0');
   },
 
   dashboard: (monthKey) => {
@@ -562,14 +729,23 @@ const WEB_SNAPSHOT_KEY = 'fintrack_data_v1';
 
 type WebSnapshot = Pick<
   DataState,
-  'ownerEmail' | 'incomes' | 'expenses' | 'loans' | 'summaries' | 'practicals' | 'profile'
+  | 'ownerEmail'
+  | 'incomes'
+  | 'expenses'
+  | 'loans'
+  | 'summaries'
+  | 'practicals'
+  | 'profile'
+  | 'profileDirty'
+  | 'lastExpenseCategory'
+  | 'lastIncomeSource'
 >;
 
-function loadWebSnapshot(): WebSnapshot | null {
+function loadWebSnapshot(): Partial<WebSnapshot> | null {
   try {
     if (typeof localStorage === 'undefined') return null;
     const raw = localStorage.getItem(WEB_SNAPSHOT_KEY);
-    return raw ? (JSON.parse(raw) as WebSnapshot) : null;
+    return raw ? (JSON.parse(raw) as Partial<WebSnapshot>) : null;
   } catch {
     return null;
   }
@@ -588,6 +764,9 @@ if (typeof localStorage !== 'undefined') {
       summaries: s.summaries,
       practicals: s.practicals,
       profile: s.profile,
+      profileDirty: s.profileDirty,
+      lastExpenseCategory: s.lastExpenseCategory,
+      lastIncomeSource: s.lastIncomeSource,
     };
     try {
       localStorage.setItem(WEB_SNAPSHOT_KEY, JSON.stringify(snapshot));

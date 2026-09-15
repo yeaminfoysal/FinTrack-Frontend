@@ -6,7 +6,8 @@
 import { categoryMeta, INCOME_SOURCES } from '@/constants/categories';
 import { lightTokens as t } from '@/constants/tokens';
 import { dailyExpenses, type DashboardSnapshot } from '@/lib/calc';
-import { dayMonthBn, fullDateBn, isInMonth, monthLabelBn, toBnDigits, weekdayBn, type MonthKey } from '@/lib/date';
+import { dayMonthBn, fullDateBn, isInMonth, monthLabelBn, weekdayBn, type MonthKey } from '@/lib/date';
+import { localDigits } from '@/lib/digits';
 import { formatTaka } from '@/lib/money';
 import type { Expense, Income, Loan } from '@/lib/types';
 
@@ -50,15 +51,15 @@ export function buildMonthReportHtml(input: MonthReportInput): string {
   const summaryTable = [
     row('ওপেনিং ব্যালেন্স', formatTaka(s.opening)),
     row('মোট আয়', `+ ${formatTaka(s.monthIncome)}`, { color: t.income }),
-    row('মোট খরচ (Daily)', `− ${formatTaka(s.monthDailyExpense)}`, { color: t.expense }),
+    row('দৈনিক খরচ', `− ${formatTaka(s.monthDailyExpense)}`, { color: t.expense }),
     row(untrackedLabel + practicalNote, formatTaka(Math.abs(s.untracked)), { color: s.untracked < 0 ? t.income : t.borrowed }),
     row('মাসের সঞ্চয়', formatTaka(s.saving), { color: s.saving < 0 ? t.expense : t.income, strong: true }),
     row('ক্লোজিং ব্যালেন্স', formatTaka(closing), { strong: true }),
   ].join('');
 
   const positionTable = [
-    row('পাওনা (Outstanding Lent)', formatTaka(s.outstandingLent), { color: t.lent }),
-    row('দেনা (Outstanding Borrowed)', formatTaka(s.outstandingBorrowed), { color: t.borrowed }),
+    row('পাওনা (বাকি)', formatTaka(s.outstandingLent), { color: t.lent }),
+    row('দেনা (বাকি)', formatTaka(s.outstandingBorrowed), { color: t.borrowed }),
     s.practical != null ? row('প্র্যাকটিক্যাল ব্যালেন্স (হাতে আছে)', formatTaka(s.practical)) : '',
     row('নেট ওয়ার্থ', formatTaka(s.netWorth), { strong: true }),
   ].join('');
@@ -67,7 +68,7 @@ export function buildMonthReportHtml(input: MonthReportInput): string {
     .map(([key, amount]) => {
       const meta = categoryMeta(key);
       const pct = s.monthDailyExpense > 0 ? Math.round((amount / s.monthDailyExpense) * 100) : 0;
-      return `<tr><td>${meta.icon} ${esc(meta.label)}</td><td class="bar"><span style="width:${pct}%"></span></td><td class="num">${toBnDigits(pct)}%</td><td class="num">${formatTaka(amount)}</td></tr>`;
+      return `<tr><td>${meta.icon} ${esc(meta.label)}</td><td class="bar"><span style="width:${pct}%"></span></td><td class="num">${localDigits(pct)}%</td><td class="num">${formatTaka(amount)}</td></tr>`;
     })
     .join('');
 
@@ -87,7 +88,7 @@ export function buildMonthReportHtml(input: MonthReportInput): string {
           return `<tr class="item"><td></td><td>${meta.icon} ${esc(meta.label)}</td><td>${esc(e.description ?? '')}</td><td class="num">${formatTaka(e.amount)}</td></tr>`;
         })
         .join('');
-      return `<tbody class="day"><tr class="day-head"><td class="date">${dayMonthBn(date)}</td><td colspan="2">${weekdayBn(date)} · ${toBnDigits(d.items.length)}টি খরচ</td><td class="num" style="color:${t.expense}">${formatTaka(d.total)}</td></tr>${items}</tbody>`;
+      return `<tbody class="day"><tr class="day-head"><td class="date">${dayMonthBn(date)}</td><td colspan="2">${weekdayBn(date)} · ${localDigits(d.items.length)}টি খরচ</td><td class="num" style="color:${t.expense}">${formatTaka(d.total)}</td></tr>${items}</tbody>`;
     })
     .join('');
 
@@ -95,7 +96,7 @@ export function buildMonthReportHtml(input: MonthReportInput): string {
     .map((l) => {
       const lent = l.direction === 'LENT';
       const status =
-        l.status === 'ACTIVE' ? 'বাকি' : `${lent ? 'ফেরত পেয়েছি' : 'ফেরত দিয়েছি'}${l.settledDate ? ` · ${dayMonthBn(l.settledDate)}` : ''}`;
+        l.status === 'ACTIVE' ? 'বাকি' : `${lent ? 'ফেরত পেয়েছি' : 'শোধ করেছি'}${l.settledDate ? ` · ${dayMonthBn(l.settledDate)}` : ''}`;
       return `<tr><td class="date">${dayMonthBn(l.date)}</td><td style="color:${lent ? t.lent : t.borrowed}">${lent ? 'ধার দেওয়া' : 'ধার নেওয়া'}</td><td>${esc(l.personName)}${l.note ? ` <span class="muted">— ${esc(l.note)}</span>` : ''}</td><td>${status}</td><td class="num">${formatTaka(l.amount)}</td></tr>`;
     })
     .join('');
