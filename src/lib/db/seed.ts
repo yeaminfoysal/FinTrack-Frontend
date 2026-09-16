@@ -11,6 +11,7 @@
  */
 import { currentMonthKey, parseMonthKey, prevMonthKey } from '@/lib/date';
 import type {
+  Category,
   Expense,
   Income,
   Loan,
@@ -41,6 +42,7 @@ export interface SeedData {
   incomes: Income[];
   expenses: Expense[];
   loans: Loan[];
+  categories: Category[];
   summaries: MonthlySummary[];
   practicals: PracticalBalance[];
   profile: UserProfile;
@@ -49,6 +51,14 @@ export interface SeedData {
 export function buildSeed(email = 'atizoom2@gmail.com'): SeedData {
   const curKey = currentMonthKey();
   const { year, month } = parseMonthKey(curKey);
+
+  // Two categories the demo user added, so the demo shows what a custom one looks like.
+  // An entry stores the category's id, so they are built first.
+  const categories: Category[] = [
+    { ...base(iso(year, month, 1)), kind: 'EXPENSE', label: 'মোবাইল রিচার্জ', icon: '📱', iconName: 'phone-portrait-outline' },
+    { ...base(iso(year, month, 1)), kind: 'INCOME', label: 'টিউশন', icon: '📖', iconName: 'book-outline' },
+  ];
+  const [rechargeCategory] = categories;
 
   const incomes: Income[] = [
     { ...base(iso(year, month, 1)), amount: tk(55000), source: 'salary', date: iso(year, month, 1), note: 'বেতন — এই মাস' },
@@ -62,8 +72,9 @@ export function buildSeed(email = 'atizoom2@gmail.com'): SeedData {
     { ...base(iso(year, month, 12)), amount: tk(12000), category: 'shopping', date: iso(year, month, 12), description: 'নতুন জামা' },
     { ...base(iso(year, month, 18)), amount: tk(4200), category: 'food', date: iso(year, month, 18), description: 'বাজার ও খাবার' },
     { ...base(iso(year, month, 20)), amount: tk(1150), category: 'transport', date: iso(year, month, 20), description: 'যাতায়াত' },
-    { ...base(iso(year, month, 22)), amount: tk(8000), category: 'others', date: iso(year, month, 22), description: 'মোবাইল রিচার্জ ও অন্যান্য' },
+    { ...base(iso(year, month, 22)), amount: tk(8000), category: rechargeCategory.id, date: iso(year, month, 22), description: 'মোবাইল রিচার্জ ও অন্যান্য' },
   ];
+
 
   const loans: Loan[] = [
     { ...base(iso(year, month, 15)), direction: 'LENT', personName: 'করিম উদ্দিন', amount: tk(7000), date: iso(year, month, 15), note: 'জরুরি দরকারে', status: 'ACTIVE', settledDate: null },
@@ -134,5 +145,5 @@ export function buildSeed(email = 'atizoom2@gmail.com'): SeedData {
     timezone: 'Asia/Dhaka',
   };
 
-  return { incomes, expenses, loans, summaries, practicals, profile };
+  return { incomes, expenses, loans, categories, summaries, practicals, profile };
 }

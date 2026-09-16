@@ -6,6 +6,8 @@ import type { StateCreator } from 'zustand';
 
 import type { MonthKey } from '@/lib/date';
 import type {
+  Category,
+  CategoryKind,
   Expense,
   Income,
   Loan,
@@ -38,6 +40,13 @@ export interface AddExpenseInput {
   date?: string;
   description?: string | null;
 }
+export interface AddCategoryInput {
+  kind: CategoryKind;
+  label: string;
+  /** Ionicons name; the matching report emoji is derived from it. */
+  iconName: string;
+}
+
 export interface AddLoanInput {
   direction: LoanDirection;
   personName: string;
@@ -54,6 +63,8 @@ export interface DataFields {
   incomes: Income[];
   expenses: Expense[];
   loans: Loan[];
+  /** Categories the user added; the built-in ones live in src/constants/categories.ts. */
+  categories: Category[];
   summaries: MonthlySummary[];
   practicals: Record<MonthKey, PracticalBalance>;
   profile: UserProfile;
@@ -101,6 +112,15 @@ export interface LoanActions {
   restoreLoan: (id: string) => void;
 }
 
+export interface CategoryActions {
+  /** Returns the new category id — also the key entries store. */
+  addCategory: (input: AddCategoryInput) => string;
+  updateCategory: (id: string, patch: Partial<Pick<Category, 'label' | 'iconName'>>) => void;
+  /** Soft delete: entries already on it keep showing its name, it just stops being offered. */
+  deleteCategory: (id: string) => void;
+  restoreCategory: (id: string) => void;
+}
+
 export interface PracticalActions {
   /** A freshly counted balance: entries logged from now on keep it current. */
   setPractical: (monthKey: MonthKey, parts: { cash: number; bank: number; mfs: number }) => void;
@@ -127,6 +147,7 @@ export type DataState = DataFields &
   IncomeActions &
   ExpenseActions &
   LoanActions &
+  CategoryActions &
   PracticalActions &
   ProfileActions &
   MonthCloseActions;

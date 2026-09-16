@@ -21,10 +21,35 @@ interface ChipSelectProps {
   accessibilityLabel?: string;
   /** One sideways-scrolling line instead of wrapping rows. Bleeds to the screen edges. */
   scroll?: boolean;
+  /** Adds a trailing chip that opens something else (e.g. "new category") instead of selecting. */
+  onAdd?: () => void;
+  addLabel?: string;
 }
 
-export function ChipSelect({ options, value, onChange, accessibilityLabel, scroll }: ChipSelectProps) {
+export function ChipSelect({
+  options,
+  value,
+  onChange,
+  accessibilityLabel,
+  scroll,
+  onAdd,
+  addLabel = 'নতুন',
+}: ChipSelectProps) {
   const { tokens } = useTheme();
+  const chipStyle = (selected: boolean, pressed: boolean) => ({
+    minHeight: 42,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 13,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: selected ? withAlpha(tokens.primary, 0.12) : tokens.surface,
+    borderColor: selected ? tokens.primary : tokens.line,
+    opacity: pressed ? 0.8 : 1,
+  });
+
   const chips = options.map((opt) => {
     const selected = opt.key === value;
     return (
@@ -34,19 +59,7 @@ export function ChipSelect({ options, value, onChange, accessibilityLabel, scrol
         accessibilityRole="radio"
         accessibilityLabel={opt.label}
         accessibilityState={{ checked: selected }}
-        style={({ pressed }) => ({
-          minHeight: 42,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 6,
-          paddingVertical: 8,
-          paddingHorizontal: 13,
-          borderRadius: 12,
-          borderWidth: 1,
-          backgroundColor: selected ? withAlpha(tokens.primary, 0.12) : tokens.surface,
-          borderColor: selected ? tokens.primary : tokens.line,
-          opacity: pressed ? 0.8 : 1,
-        })}>
+        style={({ pressed }) => chipStyle(selected, pressed)}>
         {opt.icon ? <Icon name={opt.icon} size={17} color={selected ? tokens.primary : tokens.muted} /> : null}
         <Text style={{ fontSize: textSize.md, fontWeight: '600', color: selected ? tokens.primary : tokens.ink }}>
           {opt.label}
@@ -54,6 +67,20 @@ export function ChipSelect({ options, value, onChange, accessibilityLabel, scrol
       </Pressable>
     );
   });
+
+  if (onAdd) {
+    chips.push(
+      <Pressable
+        key="__add__"
+        onPress={onAdd}
+        accessibilityRole="button"
+        accessibilityLabel={addLabel}
+        style={({ pressed }) => [chipStyle(false, pressed), { borderStyle: 'dashed' }]}>
+        <Icon name="add" size={17} color={tokens.primary} />
+        <Text style={{ fontSize: textSize.md, fontWeight: '600', color: tokens.primary }}>{addLabel}</Text>
+      </Pressable>,
+    );
+  }
 
   if (scroll) {
     return (

@@ -15,6 +15,7 @@ import { currentMonthKey } from '@/lib/date';
 import { getDb } from '@/lib/db';
 import {
   clearAllData,
+  getCategories,
   getExpenses,
   getIncomes,
   getLoans,
@@ -22,6 +23,7 @@ import {
   getPracticals,
   getSummaries,
   setMeta,
+  upsertCategory,
   upsertExpense,
   upsertIncome,
   upsertLoan,
@@ -41,6 +43,7 @@ export const createAccountSlice: DataSlice<DataFields & AccountActions> = (set, 
   incomes: [],
   expenses: [],
   loans: [],
+  categories: [],
   summaries: [],
   practicals: {},
   profile: DEFAULT_PROFILE,
@@ -62,6 +65,7 @@ export const createAccountSlice: DataSlice<DataFields & AccountActions> = (set, 
         incomes: getIncomes(db),
         expenses: getExpenses(db),
         loans: getLoans(db),
+        categories: getCategories(db),
         summaries: getSummaries(db),
         practicals: practicalsByMonth(getPracticals(db)),
         profile: profileRaw ? (JSON.parse(profileRaw) as UserProfile) : DEFAULT_PROFILE,
@@ -85,6 +89,7 @@ export const createAccountSlice: DataSlice<DataFields & AccountActions> = (set, 
         incomes: getIncomes(db),
         expenses: getExpenses(db),
         loans: getLoans(db),
+        categories: getCategories(db),
         summaries: getSummaries(db),
         practicals: practicalsByMonth(getPracticals(db)),
       });
@@ -100,6 +105,7 @@ export const createAccountSlice: DataSlice<DataFields & AccountActions> = (set, 
       seed.incomes.forEach((r) => upsertIncome(db, r));
       seed.expenses.forEach((r) => upsertExpense(db, r));
       seed.loans.forEach((r) => upsertLoan(db, r));
+      seed.categories.forEach((r) => upsertCategory(db, r));
       seed.summaries.forEach((r) => upsertSummary(db, r));
       seed.practicals.forEach((r) => upsertPractical(db, r));
       setMeta(db, 'profile', JSON.stringify(seed.profile));
@@ -112,6 +118,7 @@ export const createAccountSlice: DataSlice<DataFields & AccountActions> = (set, 
       incomes: seed.incomes,
       expenses: seed.expenses,
       loans: seed.loans,
+      categories: seed.categories,
       summaries: seed.summaries,
       practicals: practicalsByMonth(seed.practicals),
       profile: seed.profile,
@@ -147,6 +154,7 @@ export const createAccountSlice: DataSlice<DataFields & AccountActions> = (set, 
       incomes: [],
       expenses: [],
       loans: [],
+      categories: [],
       summaries: [],
       practicals: {},
       profile: nextProfile,

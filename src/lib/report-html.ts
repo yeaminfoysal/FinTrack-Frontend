@@ -3,13 +3,13 @@
  * Pure: takes the month's computed snapshot plus raw records and returns a string,
  * so it can be tested without a device. Always rendered in the light palette.
  */
-import { categoryMeta, INCOME_SOURCES } from '@/constants/categories';
+import { categorySet } from '@/constants/categories';
 import { lightTokens as t } from '@/constants/tokens';
 import { categoryTotals, dailyExpenses, type DashboardSnapshot } from '@/lib/calc';
 import { dayMonthBn, fullDateBn, isInMonth, monthLabelBn, weekdayBn, type MonthKey } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
 import { formatTaka } from '@/lib/money';
-import type { Expense, Income, Loan } from '@/lib/types';
+import type { Category, Expense, Income, Loan } from '@/lib/types';
 
 export interface MonthReportInput {
   monthKey: MonthKey;
@@ -17,6 +17,8 @@ export interface MonthReportInput {
   incomes: Income[];
   expenses: Expense[];
   loans: Loan[];
+  /** The categories the user added, so their entries keep their own name in the PDF. */
+  categories?: Category[];
   userName: string;
   generatedAt?: Date;
 }
@@ -41,6 +43,8 @@ export function buildMonthReportHtml(input: MonthReportInput): string {
   const days = dailyExpenses(input.expenses, monthKey).reverse(); // oldest day first reads naturally on paper
   const loans = input.loans.filter((l) => !l.isDeleted && isInMonth(l.date, monthKey)).sort(byDateAsc);
 
+  const expenseCategories = categorySet('EXPENSE', input.categories);
+  const incomeSources = categorySet('INCOME', input.categories);
   const categories = categoryTotals(input.expenses, monthKey);
 
   const untrackedLabel = s.untracked < 0 ? 'আনট্র্যাকড আয়' : 'আনট্র্যাকড খরচ';
@@ -64,7 +68,7 @@ export function buildMonthReportHtml(input: MonthReportInput): string {
 
   const categoryRows = categories
     .map(({ category, amount }) => {
-      const meta = categoryMeta(category);
+      const meta = expenseCategories.meta(category);
       const pct = s.monthDailyExpense > 0 ? Math.round((amount / s.monthDailyExpense) * 100) : 0;
       return `<tr><td>${meta.icon} ${esc(meta.label)}</td><td class="bar"><span style="width:${pct}%"></span></td><td class="num">${localDigits(pct)}%</td><td class="num">${formatTaka(amount)}</td></tr>`;
     })
@@ -72,7 +76,7 @@ export function buildMonthReportHtml(input: MonthReportInput): string {
 
   const incomeRows = incomes
     .map((i) => {
-      const src = INCOME_SOURCES.find((x) => x.key === i.source);
+      const src = incomeSources.find(i.source);
       return `<tr><td class="date">${dayMonthBn(i.date)}</td><td>${src ? `${src.icon} ${esc(src.label)}` : esc(i.source)}</td><td>${esc(i.note ?? '')}</td><td class="num" style="color:${t.income}">${formatTaka(i.amount)}</td></tr>`;
     })
     .join('');
@@ -82,7 +86,7 @@ export function buildMonthReportHtml(input: MonthReportInput): string {
       const date = d.items[0].date;
       const items = d.items
         .map((e) => {
-          const meta = categoryMeta(e.category);
+          const meta = expenseCategories.meta(e.category);
           return `<tr class="item"><td></td><td>${meta.icon} ${esc(meta.label)}</td><td>${esc(e.description ?? '')}</td><td class="num">${formatTaka(e.amount)}</td></tr>`;
         })
         .join('');

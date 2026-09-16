@@ -1,9 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { categoryMeta, incomeSourceMeta } from '@/constants/categories';
+import { categorySet } from '@/constants/categories';
 import { buildActivities, dayLabelBn, filterActivities, groupByDay, type Activity } from '@/lib/activity';
 import { dayKeyToIso, dayMonthBn, fullDateBn, weekdayBn } from '@/lib/date';
-import { at, expense, income, loan, tk } from '@/test/factories';
+import { at, category, expense, income, loan, tk } from '@/test/factories';
 
 const titles = (list: Activity[]) => list.map((i) => i.title);
 
@@ -20,6 +20,25 @@ describe('buildActivities', () => {
       ['income', tk(5000)],
     ]);
     expect(items[1].settled).toBe(true);
+  });
+
+  it('names entries filed under a category the user added', () => {
+    const snacks = category('EXPENSE', 'নাস্তা');
+    const tuition = category('INCOME', 'টিউশন');
+    const items = buildActivities(
+      [income(tk(3000), at(2026, 9, 2), { source: tuition.id })],
+      [expense(tk(120), at(2026, 9, 3), { category: snacks.id })],
+      [],
+      [snacks, tuition],
+    );
+    expect(items.map((i) => i.title)).toEqual(['নাস্তা', 'টিউশন']);
+    expect(items[0].searchText).toContain('নাস্তা');
+  });
+
+  it('falls back to অন্যান্য when the categories are not loaded', () => {
+    const snacks = category('EXPENSE', 'নাস্তা');
+    const [item] = buildActivities([], [expense(tk(120), at(2026, 9, 3), { category: snacks.id })], []);
+    expect(item.title).toBe(categorySet('EXPENSE').meta('others').label);
   });
 });
 
@@ -48,19 +67,22 @@ describe('filterActivities', () => {
     ],
     [loan('LENT', tk(2000), at(2026, 9, 2), { personName: 'রহিম' })],
   );
-  const food = categoryMeta('food').label;
+  const expenses = categorySet('EXPENSE');
+  const food = expenses.meta('food').label;
 
   it('filters by type, category and month', () => {
     expect(titles(filterActivities(items, { type: 'expense' }))).toEqual(['রিকশা', food]);
     expect(titles(filterActivities(items, { type: 'expense', category: 'food' }))).toEqual([food]);
-    expect(titles(filterActivities(items, { type: 'income' }))).toEqual([incomeSourceMeta('freelance')?.label]);
+    expect(titles(filterActivities(items, { type: 'income' }))).toEqual([
+      categorySet('INCOME').find('freelance')?.label,
+    ]);
     expect(titles(filterActivities(items, { type: 'loan' }))).toEqual(['রহিম']);
     expect(filterActivities(items, { monthKey: '2026-09' })).toHaveLength(3);
   });
 
   it('searches names, notes, categories and amounts, with Bangla digits too', () => {
     expect(titles(filterActivities(items, { text: 'রহিম' }))).toEqual(['রহিম']);
-    expect(titles(filterActivities(items, { text: categoryMeta('transport').label }))).toEqual(['রিকশা']);
+    expect(titles(filterActivities(items, { text: expenses.meta('transport').label }))).toEqual(['রিকশা']);
     expect(titles(filterActivities(items, { text: 'FOOD' }))).toEqual([food]);
     expect(titles(filterActivities(items, { text: '১২৫০' }))).toEqual([food]);
     expect(titles(filterActivities(items, { text: '1,250' }))).toEqual([food]);

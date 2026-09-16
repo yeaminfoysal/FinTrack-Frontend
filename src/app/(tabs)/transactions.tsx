@@ -9,8 +9,8 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Screen } from '@/components/ui/screen';
 import { SearchField } from '@/components/ui/search-field';
 import { Text } from '@/components/ui/text';
-import { EXPENSE_CATEGORIES } from '@/constants/categories';
 import { textSize } from '@/constants/typography';
+import { useCategorySet } from '@/hooks/use-categories';
 import { useActivities } from '@/hooks/use-dashboard';
 import { filterActivities, groupByDay, type ActivityType } from '@/lib/activity';
 import { currentMonthKey, monthLabelBn, type MonthKey } from '@/lib/date';
@@ -25,17 +25,21 @@ const TYPE_OPTIONS: ChipOption[] = [
   { key: 'loan', label: 'লোন', icon: 'swap-horizontal' },
 ];
 
-const CATEGORY_OPTIONS: ChipOption[] = [
-  { key: 'all', label: 'সব ক্যাটাগরি' },
-  ...EXPENSE_CATEGORIES.map((c) => ({ key: c.key, label: c.label, icon: c.iconName })),
-];
-
 export default function TransactionsScreen() {
   const { tokens } = useTheme();
   const router = useRouter();
   const thisMonth = currentMonthKey();
   const months = useMonthsWithData();
   const activities = useActivities();
+  const expenseCategories = useCategorySet('EXPENSE');
+  // "All" plus every category on offer; a deleted one drops out of the filter but its entries stay.
+  const categoryOptions: ChipOption[] = useMemo(
+    () => [
+      { key: 'all', label: 'সব ক্যাটাগরি' },
+      ...expenseCategories.options.map((c) => ({ key: c.key, label: c.label, icon: c.iconName })),
+    ],
+    [expenseCategories],
+  );
 
   const [monthKey, setMonthKey] = useState<MonthKey>(thisMonth);
   const [type, setType] = useState<ActivityType>('all');
@@ -84,7 +88,7 @@ export default function TransactionsScreen() {
           accessibilityLabel="লেনদেনের ধরন"
         />
         {type === 'expense' ? (
-          <ChipSelect scroll options={CATEGORY_OPTIONS} value={category} onChange={setCategory} accessibilityLabel="ক্যাটাগরি" />
+          <ChipSelect scroll options={categoryOptions} value={category} onChange={setCategory} accessibilityLabel="ক্যাটাগরি" />
         ) : null}
       </View>
 

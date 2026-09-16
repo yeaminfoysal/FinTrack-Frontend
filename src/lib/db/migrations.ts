@@ -100,6 +100,22 @@ ALTER TABLE practical_balance ADD COLUMN countedAt TEXT;
 UPDATE practical_balance SET countedAt = updatedAt;
 ALTER TABLE practical_balance ADD COLUMN syncStatus TEXT NOT NULL DEFAULT 'PENDING';
 `,
+  // 3 — categories the user adds on top of the built-in ones. An expense/income stores this
+  // row's id in its category/source column, so a rename keeps every entry attached.
+  `
+CREATE TABLE IF NOT EXISTS category (
+  id TEXT PRIMARY KEY NOT NULL,
+  kind TEXT NOT NULL,
+  label TEXT NOT NULL,
+  icon TEXT NOT NULL,
+  iconName TEXT NOT NULL,
+  isDeleted INTEGER NOT NULL DEFAULT 0,
+  deletedAt TEXT,
+  syncStatus TEXT NOT NULL DEFAULT 'PENDING',
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL
+);
+`,
 ];
 
 /** Brings the database up to the latest schema and returns its version. */

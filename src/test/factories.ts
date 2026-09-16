@@ -1,5 +1,14 @@
 /** Record builders for unit tests. Dates are built in local time, so tests pass in any timezone. */
-import type { Expense, Income, Loan, LoanDirection, MonthlySummary, PracticalBalance } from '@/lib/types';
+import type {
+  Category,
+  CategoryKind,
+  Expense,
+  Income,
+  Loan,
+  LoanDirection,
+  MonthlySummary,
+  PracticalBalance,
+} from '@/lib/types';
 
 let lastId = 0;
 
@@ -29,6 +38,18 @@ export function income(amount: number, date: string, fields: Partial<Income> = {
 
 export function expense(amount: number, date: string, fields: Partial<Expense> = {}): Expense {
   return { ...base(date), amount, category: 'food', date, description: null, ...fields };
+}
+
+/** One of the user's own categories. Its id is the key an expense/income stores. */
+export function category(kind: CategoryKind, label: string, fields: Partial<Category> = {}): Category {
+  return {
+    ...base(at(2026, 1, 1)),
+    kind,
+    label,
+    icon: '📱',
+    iconName: 'phone-portrait-outline',
+    ...fields,
+  };
 }
 
 export function loan(direction: LoanDirection, amount: number, date: string, fields: Partial<Loan> = {}): Loan {

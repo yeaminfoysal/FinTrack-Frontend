@@ -14,9 +14,9 @@ type SetState = Parameters<DataSlice<object>>[0];
 
 export interface RecordKind<T extends BaseRecord> {
   /** Where the records live in the store. */
-  list: 'incomes' | 'expenses' | 'loans';
+  list: 'incomes' | 'expenses' | 'loans' | 'categories';
   save: (db: Db, record: T) => void;
-  /** Cash the record moves; [] once deleted. */
+  /** Cash the record moves; [] once deleted, and always [] for records that hold no money. */
   cashEvents: (record: T) => CashEvent[];
 }
 

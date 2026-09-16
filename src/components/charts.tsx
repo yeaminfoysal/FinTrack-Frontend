@@ -3,24 +3,25 @@ import { Pressable, View } from 'react-native';
 
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
-import { categoryMeta } from '@/constants/categories';
 import { withAlpha } from '@/constants/tokens';
 import { textSize } from '@/constants/typography';
 import type { CategoryTotal } from '@/lib/calc';
 import { monthLabelBn, monthShortBn, type MonthKey } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
+import { useCategorySet } from '@/hooks/use-categories';
 import { formatTaka } from '@/lib/money';
 import { useTheme } from '@/providers/theme-provider';
 
 /** One bar per category with its share of the month's expense. `items` come largest first. */
 export function CategoryBars({ items }: { items: CategoryTotal[] }) {
   const { tokens } = useTheme();
+  const categories = useCategorySet('EXPENSE');
   const total = items.reduce((sum, c) => sum + c.amount, 0);
 
   return (
     <View style={{ gap: 14 }}>
       {items.map(({ category, amount }) => {
-        const meta = categoryMeta(category);
+        const meta = categories.meta(category);
         const pct = total > 0 ? Math.round((amount / total) * 100) : 0;
         return (
           <View

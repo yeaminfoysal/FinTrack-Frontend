@@ -1,6 +1,6 @@
 /** Typed endpoint helpers. UI reads from SQLite; these feed the sync layer/auth. */
 import { api } from '@/lib/api/client';
-import type { Expense, Income, Loan, MonthlySummary, PracticalBalance } from '@/lib/types';
+import type { Category, Expense, Income, Loan, MonthlySummary, PracticalBalance } from '@/lib/types';
 
 export interface AuthResponse {
   accessToken: string;
@@ -40,6 +40,7 @@ export interface SyncPushPayload {
   incomes?: OutgoingRecord<Income>[];
   expenses?: OutgoingRecord<Expense>[];
   loans?: OutgoingRecord<Loan>[];
+  categories?: OutgoingRecord<Category>[];
   monthlySummaries?: OutgoingRecord<MonthlySummary>[];
   practicalBalances?: OutgoingRecord<PracticalBalance>[];
 }
@@ -50,6 +51,7 @@ export interface SyncPullResponse {
   incomes?: Record<string, unknown>[];
   expenses?: Record<string, unknown>[];
   loans?: Record<string, unknown>[];
+  categories?: Record<string, unknown>[];
   monthlySummaries?: Record<string, unknown>[];
   practicalBalances?: Record<string, unknown>[];
 }

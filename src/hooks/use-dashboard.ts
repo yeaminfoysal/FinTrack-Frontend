@@ -13,7 +13,11 @@ export function useActivities(): Activity[] {
   const incomes = useDataStore((s) => s.incomes);
   const expenses = useDataStore((s) => s.expenses);
   const loans = useDataStore((s) => s.loans);
-  return useMemo(() => buildActivities(incomes, expenses, loans), [incomes, expenses, loans]);
+  const categories = useDataStore((s) => s.categories);
+  return useMemo(
+    () => buildActivities(incomes, expenses, loans, categories),
+    [incomes, expenses, loans, categories],
+  );
 }
 
 export function useDashboard(monthKeyArg?: MonthKey): {

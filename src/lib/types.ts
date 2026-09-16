@@ -3,6 +3,8 @@
 export type SyncStatus = 'PENDING' | 'SYNCED' | 'FAILED';
 export type LoanDirection = 'LENT' | 'BORROWED';
 export type LoanStatus = 'ACTIVE' | 'SETTLED';
+/** Whether a category labels an expense or an income. */
+export type CategoryKind = 'EXPENSE' | 'INCOME';
 
 export interface BaseRecord {
   id: string;
@@ -25,6 +27,20 @@ export interface Expense extends BaseRecord {
   category: string;
   date: string; // ISO
   description: string | null;
+}
+
+/**
+ * A category the user added on top of the built-in ones (src/constants/categories.ts).
+ * Its `id` is what expense.category / income.source store, so renaming it keeps every
+ * entry attached; a deleted one still resolves, so older entries keep their name.
+ */
+export interface Category extends BaseRecord {
+  kind: CategoryKind;
+  label: string;
+  /** Emoji, used in the PDF report. */
+  icon: string;
+  /** Ionicons name, used in the app. */
+  iconName: string;
 }
 
 export interface Loan extends BaseRecord {

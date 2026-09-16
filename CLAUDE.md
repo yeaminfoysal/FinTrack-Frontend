@@ -65,7 +65,7 @@ src/
   app/                    # Expo Router routes (screens)
     (auth)/               # login, register, forgot-password
     (tabs)/               # index (হোম), transactions (লেনদেন), loans (পাওনা-দেনা), report (রিপোর্ট)
-    add*.tsx, settings.tsx
+    add*.tsx, settings.tsx, categories.tsx
     _layout.tsx           # root: fonts, theme, auth gate, toast/dialog host
   components/             # screen-এর অংশ: activity-list, charts, month-switcher, forms/ …
     ui/                   # design system: Text, Button, Card, ListRow, BottomSheet, AmountText …
@@ -73,6 +73,7 @@ src/
     data-state.ts         # store-এর shape (DataState) + input type
     records/              # income/expense/loan-এর shared add/edit/delete/restore
     income/ expense/ loan/
+    category/             # ব্যবহারকারীর নিজের খরচ-ক্যাটাগরি / আয়-উৎস
     balance/              # practical balance + auto-adjust
     summary/              # month-close
     profile/ account/     # profile; init, demo seed, account বদল
@@ -85,7 +86,7 @@ src/
     activity.ts           # লেনদেন timeline: row, day grouping, search/filter
     money.ts · date.ts · digits.ts
   stores/                 # Zustand: data (slice জোড়া দেয়), session, sync, ui
-  hooks/                  # useDashboard, useActivities, useSyncStatus
+  hooks/                  # useDashboard, useActivities, useCategorySet, useSyncStatus
   constants/              # tokens, typography, fonts, categories
   providers/              # theme
   test/                   # test factories
@@ -167,6 +168,21 @@ Net Worth = Practical Balance + Outstanding Lent − Outstanding Borrowed
 
 ---
 
+## 🏷️ Categories (built-in + ব্যবহারকারীর নিজের)
+
+Default ৮টি expense category ও ৫টি income source `src/constants/categories.ts`-এ **fixed** — বদলানো বা মোছা যায় না। এর পাশাপাশি ব্যবহারকারী নিজের category/source যোগ করতে পারে; সেগুলো `Category` record হিসেবে **sync হয়**।
+
+- **Key:** `expense.category` / `income.source`-এ হয় built-in slug (`food`, `salary`) নয়তো custom category-র **`id`**। id কখনো বদলায় না, তাই rename করলেও পুরোনো entry সঠিক category-তেই থাকে।
+- **`categorySet(kind, categories)`** (pure, `src/constants/categories.ts`) দেয়: `options` (chips-এ যা দেখাবে — built-in আগে, তারপর live custom), `custom`, `meta(key)` (lookup; না মিললে "অন্যান্য"), `find(key)`, আর `hasLabel()` (duplicate নাম আটকাতে)।
+  - **Deleted category resolve হতেই থাকে** — তাই পুরোনো entry নামটা ধরে রাখে; শুধু `options`/`custom` থেকে বাদ যায়।
+  - Component-এ `useCategorySet(kind)` (`src/hooks/use-categories.ts`); pure function-এ (`buildActivities`, `buildMonthReportHtml`) store-এর `categories` array পাস করতে হয় — না দিলে custom entry গুলো "অন্যান্য" দেখাবে।
+- **Icon:** `CATEGORY_ICON_CHOICES`-এর curated grid থেকে বাছা হয় — প্রতিটি Ionicons নামের সাথে PDF report-এর জন্য মিল রাখা emoji (`emojiForIcon`)।
+- **UI:** add/edit sheet `src/components/category-sheet.tsx`; খরচ/আয় form-এর chips-এ "+ নতুন" chip (`ChipSelect`-এর `onAdd`); ব্যবস্থাপনা screen `src/app/categories.tsx` (Settings → ক্যাটাগরি)।
+  - ⚠️ BottomSheet-এর **ভেতর থেকে `confirmDialog` খুলবে না** — root-এর `DialogHost` sheet-এর নিচে render হয়। আগে sheet বন্ধ করে তারপর confirm করো (category delete এভাবেই করা)।
+- **হিসাবে কোনো প্রভাব নেই** (§A–§F অপরিবর্তিত) — category শুধু label।
+
+---
+
 ## 💰 Money / Currency (Modification #1)
 
 - সব মান **integer paisa** (`number`)। উদাহরণ: ৳১,২৫০.৫০ → `125050`।
@@ -201,6 +217,7 @@ Net Worth = Practical Balance + Outstanding Lent − Outstanding Borrowed
 - **UUID** client-এ generate হয় (`expo-crypto` বা `Crypto.randomUUID()`); local ও server একই id।
 
 ### Sync Flow
+- Synced: income, expense, loan, **category**, monthly_summary, practical_balance।
 - **Push:** `syncStatus='PENDING'` রেকর্ডগুলো `POST /sync/push`-এ পাঠাও → success হলে `SYNCED`, fail হলে `FAILED`।
 - **Pull:** `GET /sync/pull?since=<cursor>` → cursor-এর পরে server যে রেকর্ড লিখেছে (নতুন/updated/deleted) → **Last-Write-Wins** (`updatedAt` দিয়ে) SQLite-এ merge → cursor = response-এর `serverTime` (meta `lastSyncTime`)।
   - Cursor server-এর ঘড়িতে: server প্রতিটি write-এ `serverUpdatedAt` বসায় আর pull সেটা দিয়ে filter করে (৬০ সেকেন্ড overlap সহ)। তাই অন্য device offline-এ edit করে পরে push করলেও মিস হয় না।
@@ -218,6 +235,7 @@ Net Worth = Practical Balance + Outstanding Lent − Outstanding Borrowed
 
 - **income**: `id, amount, source, date, note, isDeleted, deletedAt, syncStatus, createdAt, updatedAt`
 - **expense**: `id, amount, category, date, description, isDeleted, deletedAt, syncStatus, createdAt, updatedAt`
+- **category**: `id, kind('EXPENSE'|'INCOME'), label, icon, iconName, isDeleted, deletedAt, syncStatus, createdAt, updatedAt` — ব্যবহারকারীর নিজের খরচ-ক্যাটাগরি / আয়-উৎস। `expense.category` ও `income.source`-এ এই row-এর `id` বসে।
 - **loan**: `id, direction('LENT'|'BORROWED'), personName, amount, date, note, status('ACTIVE'|'SETTLED'), settledDate, isDeleted, deletedAt, syncStatus, createdAt, updatedAt`
 - **monthly_summary**: `id, year, month, openingBalance, totalIncome, totalDailyExpense, outstandingLent, outstandingBorrowed, untrackedExpense, monthlySaving, closingBalance, practicalBalance, isDeleted, deletedAt, syncStatus, createdAt, updatedAt` (unique: `year+month`)
 - **practical_balance**: `monthKey, cash, bank, mfs, amount, countedAt, updatedAt, syncStatus` — প্রতি মাসে একটি। Server-এ `PracticalBalance` (userId + monthKey) হিসেবে sync হয়; month-close-এ `amount` `monthly_summary.practicalBalance`-এ যায়।
@@ -298,11 +316,12 @@ Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `na
 - **Auth:** Login, Register, Forgot/Reset Password।
 - **Dashboard:** Current Balance, Opening Savings, চলতি মাসের Income/Expense, Outstanding Lent (পাওনা), Outstanding Borrowed (দেনা), Untracked Expense, চলতি মাসের Saving, Net Worth (optional) — সব **local calc** থেকে।
 - **Income:** add/edit/delete (soft), history, backdated date।
-- **Expense:** add/edit/delete (soft), categories (Food, Transport, Shopping, Medical, Education, Entertainment, Utilities, Others), backdated।
+- **Expense:** add/edit/delete (soft), categories (Food, Transport, Shopping, Medical, Education, Entertainment, Utilities, Others + ব্যবহারকারীর নিজের), backdated।
 - **Loan:** add (LENT/BORROWED), settle (Return/Repay), list with direction/status filter।
 - **Practical Balance:** যেকোনো সময় current balance ইনপুট → untracked auto-calc।
 - **History:** previous months summary (income/expense/untracked/saving + opening/closing), income/expense/loan/saving history।
 - **PDF Report:** client-side (expo-print), মাসিক report (বাংলা font embed)।
+- **Categories:** নিজের খরচ-ক্যাটাগরি ও আয়-উৎস যোগ/এডিট/ডিলিট (নিচের §Categories)।
 - **Settings:** opening savings, currency, timezone, theme, sync status, logout।
 
 ---

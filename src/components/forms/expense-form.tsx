@@ -1,20 +1,20 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
+import { CategorySheet } from '@/components/category-sheet';
 import { AmountInput } from '@/components/ui/amount-input';
 import { Button } from '@/components/ui/button';
 import { ChipSelect } from '@/components/ui/chip-select';
 import { DateField } from '@/components/ui/date-field';
 import { Field, FieldLabel } from '@/components/ui/field';
-import { EXPENSE_CATEGORIES } from '@/constants/categories';
+import { DEFAULT_EXPENSE_CATEGORY } from '@/constants/categories';
+import { useCategorySet } from '@/hooks/use-categories';
 import { dayKeyOf, dayKeyToIso, todayKey } from '@/lib/date';
 import { amountInputFromPaisa, formatTaka, toPaisa } from '@/lib/money';
 import type { Expense } from '@/lib/types';
 import { useTheme } from '@/providers/theme-provider';
 import { useDataStore } from '@/stores/data';
 import { confirmDialog, showToast } from '@/stores/ui';
-
-const CATEGORY_OPTIONS = EXPENSE_CATEGORIES.map((c) => ({ key: c.key, label: c.label, icon: c.iconName }));
 
 interface ExpenseFormProps {
   /** Edit this expense; omit to add a new one. */
@@ -25,6 +25,7 @@ interface ExpenseFormProps {
 
 export function ExpenseForm({ existing, onDone }: ExpenseFormProps) {
   const { tokens } = useTheme();
+  const categories = useCategorySet('EXPENSE');
   const addExpense = useDataStore((s) => s.addExpense);
   const updateExpense = useDataStore((s) => s.updateExpense);
   const deleteExpense = useDataStore((s) => s.deleteExpense);
@@ -32,9 +33,23 @@ export function ExpenseForm({ existing, onDone }: ExpenseFormProps) {
 
   const initialDay = existing ? dayKeyOf(existing.date) : todayKey();
   const [amount, setAmount] = useState(existing ? amountInputFromPaisa(existing.amount) : '');
-  const [category, setCategory] = useState(
-    () => existing?.category ?? useDataStore.getState().lastExpenseCategory ?? 'food',
-  );
+  // An edited expense keeps the category it was filed under even if that one has since been
+  // deleted; a new one never starts on a category that is no longer offered.
+  const [category, setCategory] = useState(() => {
+    if (existing) return existing.category;
+    const last = useDataStore.getState().lastExpenseCategory;
+    return last && categories.options.some((c) => c.key === last) ? last : DEFAULT_EXPENSE_CATEGORY;
+  });
+  const [addingCategory, setAddingCategory] = useState(false);
+  const categoryOptions = useMemo(() => {
+    // Show a deleted category too while it is the selected one, so the row is never blank.
+    const selected = categories.options.some((c) => c.key === category) ? null : categories.find(category);
+    return [...(selected ? [selected] : []), ...categories.options].map((c) => ({
+      key: c.key,
+      label: c.label,
+      icon: c.iconName,
+    }));
+  }, [categories, category]);
   const [day, setDay] = useState(initialDay);
   const [description, setDescription] = useState(existing?.description ?? '');
   const [amountError, setAmountError] = useState<string | null>(null);
@@ -106,7 +121,14 @@ export function ExpenseForm({ existing, onDone }: ExpenseFormProps) {
       />
       <View style={{ gap: 7 }}>
         <FieldLabel>ক্যাটাগরি</FieldLabel>
-        <ChipSelect options={CATEGORY_OPTIONS} value={category} onChange={setCategory} accessibilityLabel="ক্যাটাগরি" />
+        <ChipSelect
+          options={categoryOptions}
+          value={category}
+          onChange={setCategory}
+          accessibilityLabel="ক্যাটাগরি"
+          onAdd={() => setAddingCategory(true)}
+          addLabel="নতুন ক্যাটাগরি"
+        />
       </View>
       <DateField value={day} onChange={setDay} />
       <Field
@@ -120,6 +142,14 @@ export function ExpenseForm({ existing, onDone }: ExpenseFormProps) {
       <Button label={existing ? 'পরিবর্তন সেভ করুন' : 'খরচ সেভ করুন'} icon="checkmark" onPress={save} style={{ marginTop: 4 }} />
       {existing ? (
         <Button label="ডিলিট করুন" icon="trash-outline" variant="outline" color={tokens.expense} onPress={() => void remove()} />
+      ) : null}
+      {addingCategory ? (
+        <CategorySheet
+          visible
+          onClose={() => setAddingCategory(false)}
+          set={categories}
+          onSaved={setCategory}
+        />
       ) : null}
     </>
   );

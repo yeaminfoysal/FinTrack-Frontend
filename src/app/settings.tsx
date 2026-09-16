@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 
@@ -8,6 +9,8 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Field } from '@/components/ui/field';
+import { Icon } from '@/components/ui/icon';
+import { ListGroup, ListRow } from '@/components/ui/list-row';
 import { Segmented } from '@/components/ui/segmented';
 import { Text } from '@/components/ui/text';
 import { textSize } from '@/constants/typography';
@@ -29,6 +32,7 @@ const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
 
 export default function SettingsScreen() {
   const { tokens, preference, setPreference } = useTheme();
+  const router = useRouter();
   const profile = useDataStore((s) => s.profile);
   const logout = useSessionStore((s) => s.logout);
   const sync = useSyncStatus();
@@ -116,6 +120,20 @@ export default function SettingsScreen() {
         {/* Remount when the stored profile changes (loaded from storage, pulled from the
             server) so the fields never keep stale values that a save would write back. */}
         <ProfileForm key={`${profile.name}|${profile.openingSavings}`} />
+      </SettingGroup>
+
+      {/* Categories */}
+      <SettingGroup label="ক্যাটাগরি">
+        <ListGroup>
+          <ListRow
+            title="ক্যাটাগরি ও উৎস"
+            subtitle="নিজের খরচের ক্যাটাগরি ও আয়ের উৎস যোগ করুন"
+            icon="pricetags-outline"
+            tint={tokens.primary}
+            onPress={() => router.push('/categories')}
+            trailing={<Icon name="chevron-forward" size={18} color={tokens.muted} />}
+          />
+        </ListGroup>
       </SettingGroup>
 
       {/* Preferences */}

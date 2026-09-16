@@ -1,20 +1,20 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
+import { CategorySheet } from '@/components/category-sheet';
 import { AmountInput } from '@/components/ui/amount-input';
 import { Button } from '@/components/ui/button';
 import { ChipSelect } from '@/components/ui/chip-select';
 import { DateField } from '@/components/ui/date-field';
 import { Field, FieldLabel } from '@/components/ui/field';
-import { INCOME_SOURCES } from '@/constants/categories';
+import { DEFAULT_INCOME_SOURCE } from '@/constants/categories';
+import { useCategorySet } from '@/hooks/use-categories';
 import { dayKeyOf, dayKeyToIso, todayKey } from '@/lib/date';
 import { amountInputFromPaisa, formatTaka, toPaisa } from '@/lib/money';
 import type { Income } from '@/lib/types';
 import { useTheme } from '@/providers/theme-provider';
 import { useDataStore } from '@/stores/data';
 import { confirmDialog, showToast } from '@/stores/ui';
-
-const SOURCE_OPTIONS = INCOME_SOURCES.map((s) => ({ key: s.key, label: s.label, icon: s.iconName }));
 
 interface IncomeFormProps {
   /** Edit this income; omit to add a new one. */
@@ -25,6 +25,7 @@ interface IncomeFormProps {
 
 export function IncomeForm({ existing, onDone }: IncomeFormProps) {
   const { tokens } = useTheme();
+  const sources = useCategorySet('INCOME');
   const addIncome = useDataStore((s) => s.addIncome);
   const updateIncome = useDataStore((s) => s.updateIncome);
   const deleteIncome = useDataStore((s) => s.deleteIncome);
@@ -32,7 +33,23 @@ export function IncomeForm({ existing, onDone }: IncomeFormProps) {
 
   const initialDay = existing ? dayKeyOf(existing.date) : todayKey();
   const [amount, setAmount] = useState(existing ? amountInputFromPaisa(existing.amount) : '');
-  const [source, setSource] = useState(() => existing?.source ?? useDataStore.getState().lastIncomeSource ?? 'salary');
+  // An edited income keeps the source it was filed under even if that one has since been
+  // deleted; a new one never starts on a source that is no longer offered.
+  const [source, setSource] = useState(() => {
+    if (existing) return existing.source;
+    const last = useDataStore.getState().lastIncomeSource;
+    return last && sources.options.some((s) => s.key === last) ? last : DEFAULT_INCOME_SOURCE;
+  });
+  const [addingSource, setAddingSource] = useState(false);
+  const sourceOptions = useMemo(() => {
+    // Show a deleted source too while it is the selected one, so the row is never blank.
+    const selected = sources.options.some((s) => s.key === source) ? null : sources.find(source);
+    return [...(selected ? [selected] : []), ...sources.options].map((s) => ({
+      key: s.key,
+      label: s.label,
+      icon: s.iconName,
+    }));
+  }, [sources, source]);
   const [day, setDay] = useState(initialDay);
   const [note, setNote] = useState(existing?.note ?? '');
   const [amountError, setAmountError] = useState<string | null>(null);
@@ -99,7 +116,14 @@ export function IncomeForm({ existing, onDone }: IncomeFormProps) {
       />
       <View style={{ gap: 7 }}>
         <FieldLabel>উৎস</FieldLabel>
-        <ChipSelect options={SOURCE_OPTIONS} value={source} onChange={setSource} accessibilityLabel="আয়ের উৎস" />
+        <ChipSelect
+          options={sourceOptions}
+          value={source}
+          onChange={setSource}
+          accessibilityLabel="আয়ের উৎস"
+          onAdd={() => setAddingSource(true)}
+          addLabel="নতুন উৎস"
+        />
       </View>
       <DateField value={day} onChange={setDay} />
       <Field
@@ -113,6 +137,9 @@ export function IncomeForm({ existing, onDone }: IncomeFormProps) {
       <Button label={existing ? 'পরিবর্তন সেভ করুন' : 'আয় সেভ করুন'} icon="checkmark" onPress={save} style={{ marginTop: 4 }} />
       {existing ? (
         <Button label="ডিলিট করুন" icon="trash-outline" variant="outline" color={tokens.expense} onPress={() => void remove()} />
+      ) : null}
+      {addingSource ? (
+        <CategorySheet visible onClose={() => setAddingSource(false)} set={sources} onSaved={setSource} />
       ) : null}
     </>
   );

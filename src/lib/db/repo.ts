@@ -2,6 +2,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type {
+  Category,
   Expense,
   Income,
   Loan,
@@ -42,6 +43,21 @@ export function toExpense(r: Row): Expense {
     isDeleted: b(r.isDeleted),
     deletedAt: (r.deletedAt as string) ?? null,
     syncStatus: r.syncStatus as Expense['syncStatus'],
+    createdAt: String(r.createdAt),
+    updatedAt: String(r.updatedAt),
+  };
+}
+
+export function toCategory(r: Row): Category {
+  return {
+    id: String(r.id),
+    kind: r.kind as Category['kind'],
+    label: String(r.label),
+    icon: String(r.icon),
+    iconName: String(r.iconName),
+    isDeleted: b(r.isDeleted),
+    deletedAt: (r.deletedAt as string) ?? null,
+    syncStatus: r.syncStatus as Category['syncStatus'],
     createdAt: String(r.createdAt),
     updatedAt: String(r.updatedAt),
   };
@@ -108,6 +124,10 @@ export function getIncomes(db: SQLiteDatabase): Income[] {
 export function getExpenses(db: SQLiteDatabase): Expense[] {
   return db.getAllSync<Row>('SELECT * FROM expense ORDER BY date DESC').map(toExpense);
 }
+/** Oldest first, so the chips keep the order the user added them in. */
+export function getCategories(db: SQLiteDatabase): Category[] {
+  return db.getAllSync<Row>('SELECT * FROM category ORDER BY createdAt').map(toCategory);
+}
 export function getLoans(db: SQLiteDatabase): Loan[] {
   return db.getAllSync<Row>('SELECT * FROM loan ORDER BY date DESC').map(toLoan);
 }
@@ -125,6 +145,7 @@ export function getPendingRecords(db: SQLiteDatabase) {
     incomes: db.getAllSync<Row>("SELECT * FROM income WHERE syncStatus = 'PENDING'").map(toIncome),
     expenses: db.getAllSync<Row>("SELECT * FROM expense WHERE syncStatus = 'PENDING'").map(toExpense),
     loans: db.getAllSync<Row>("SELECT * FROM loan WHERE syncStatus = 'PENDING'").map(toLoan),
+    categories: db.getAllSync<Row>("SELECT * FROM category WHERE syncStatus = 'PENDING'").map(toCategory),
     monthlySummaries: db.getAllSync<Row>("SELECT * FROM monthly_summary WHERE syncStatus = 'PENDING'").map(toSummary),
     practicalBalances: db
       .getAllSync<Row>("SELECT * FROM practical_balance WHERE syncStatus = 'PENDING'")
@@ -137,7 +158,7 @@ export type StoredVersion = { syncStatus: SyncStatus; updatedAt: string } | null
 
 export function getRecordVersion(
   db: SQLiteDatabase,
-  table: 'income' | 'expense' | 'loan',
+  table: 'income' | 'expense' | 'loan' | 'category',
   id: string,
 ): StoredVersion {
   return db.getFirstSync<{ syncStatus: SyncStatus; updatedAt: string }>(
@@ -181,11 +202,12 @@ export function markAsSynced(
     expenses: SentRecord[];
     loans: SentRecord[];
     summaries: SentRecord[];
+    categories: SentRecord[];
     practicals: SentPractical[];
   },
 ) {
   db.withTransactionSync(() => {
-    const mark = (table: 'income' | 'expense' | 'loan' | 'monthly_summary', rows: SentRecord[]) => {
+    const mark = (table: 'income' | 'expense' | 'loan' | 'monthly_summary' | 'category', rows: SentRecord[]) => {
       for (const row of rows) {
         db.runSync(`UPDATE ${table} SET syncStatus = 'SYNCED' WHERE id = ? AND updatedAt = ?`, [row.id, row.updatedAt]);
       }
@@ -194,6 +216,7 @@ export function markAsSynced(
     mark('expense', sent.expenses);
     mark('loan', sent.loans);
     mark('monthly_summary', sent.summaries);
+    mark('category', sent.categories);
     for (const row of sent.practicals) {
       db.runSync("UPDATE practical_balance SET syncStatus = 'SYNCED' WHERE monthKey = ? AND updatedAt = ?", [
         row.monthKey,
@@ -216,6 +239,13 @@ export function upsertExpense(db: SQLiteDatabase, e: Expense): void {
     `INSERT OR REPLACE INTO expense (id,amount,category,date,description,isDeleted,deletedAt,syncStatus,createdAt,updatedAt)
      VALUES (?,?,?,?,?,?,?,?,?,?)`,
     [e.id, e.amount, e.category, e.date, e.description, e.isDeleted ? 1 : 0, e.deletedAt, e.syncStatus, e.createdAt, e.updatedAt],
+  );
+}
+export function upsertCategory(db: SQLiteDatabase, c: Category): void {
+  db.runSync(
+    `INSERT OR REPLACE INTO category (id,kind,label,icon,iconName,isDeleted,deletedAt,syncStatus,createdAt,updatedAt)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    [c.id, c.kind, c.label, c.icon, c.iconName, c.isDeleted ? 1 : 0, c.deletedAt, c.syncStatus, c.createdAt, c.updatedAt],
   );
 }
 export function upsertLoan(db: SQLiteDatabase, l: Loan): void {
@@ -269,6 +299,7 @@ export function clearAllData(db: SQLiteDatabase): void {
      DELETE FROM expense;
      DELETE FROM loan;
      DELETE FROM monthly_summary;
-     DELETE FROM practical_balance;`,
+     DELETE FROM practical_balance;
+     DELETE FROM category;`,
   );
 }

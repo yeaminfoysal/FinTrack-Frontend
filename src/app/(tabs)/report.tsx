@@ -45,6 +45,7 @@ export default function ReportScreen() {
   const expenses = useDataStore((s) => s.expenses);
   const summaries = useDataStore((s) => s.summaries);
   const loans = useDataStore((s) => s.loans);
+  const customCategories = useDataStore((s) => s.categories);
   const practicals = useDataStore((s) => s.practicals);
   const profile = useDataStore((s) => s.profile);
   const [exporting, setExporting] = useState<'share' | 'save' | null>(null);
@@ -85,7 +86,7 @@ export default function ReportScreen() {
   const exportPdf = async (mode: 'share' | 'save') => {
     setExporting(mode);
     try {
-      const html = buildMonthReportHtml({ monthKey, snapshot, incomes, expenses, loans, userName: profile.name });
+      const html = buildMonthReportHtml({ monthKey, snapshot, incomes, expenses, loans, categories: customCategories, userName: profile.name });
       if (mode === 'share') {
         await shareReportPdf(html, monthKey);
       } else {

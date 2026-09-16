@@ -10,6 +10,7 @@ import { create } from 'zustand';
 
 import { createAccountSlice } from '@/features/account/account-slice';
 import { createPracticalSlice } from '@/features/balance/practical-slice';
+import { createCategorySlice } from '@/features/category/category-slice';
 import type { DataState } from '@/features/data-state';
 import { createExpenseSlice } from '@/features/expense/expense-slice';
 import { createIncomeSlice } from '@/features/income/income-slice';
@@ -23,6 +24,7 @@ export const useDataStore = create<DataState>()((...a) => ({
   ...createIncomeSlice(...a),
   ...createExpenseSlice(...a),
   ...createLoanSlice(...a),
+  ...createCategorySlice(...a),
   ...createPracticalSlice(...a),
   ...createProfileSlice(...a),
   ...createMonthCloseSlice(...a),
@@ -31,5 +33,11 @@ export const useDataStore = create<DataState>()((...a) => ({
 closeMonthsOnChange(useDataStore);
 saveWebSnapshots(useDataStore);
 
-export { DEMO_OWNER, type AddExpenseInput, type AddIncomeInput, type AddLoanInput } from '@/features/data-state';
+export {
+  DEMO_OWNER,
+  type AddCategoryInput,
+  type AddExpenseInput,
+  type AddIncomeInput,
+  type AddLoanInput,
+} from '@/features/data-state';
 export { countPending } from '@/features/sync/pending';

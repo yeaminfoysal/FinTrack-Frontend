@@ -3,7 +3,7 @@
  * display rows, grouping by day and search/filter. Pure — no React, no store.
  */
 import type { IconName } from '@/components/ui/icon';
-import { categoryMeta, incomeSourceMeta } from '@/constants/categories';
+import { categorySet } from '@/constants/categories';
 import { rowsInMonth } from '@/lib/calc/month-index';
 import {
   dayKeyOf,
@@ -18,7 +18,7 @@ import {
 } from '@/lib/date';
 import { toLatinDigits } from '@/lib/digits';
 import { formatAmount } from '@/lib/money';
-import type { Expense, Income, Loan } from '@/lib/types';
+import type { Category, Expense, Income, Loan } from '@/lib/types';
 
 export type ActivityKind = 'income' | 'expense' | 'lent' | 'borrowed';
 
@@ -53,12 +53,22 @@ function searchText(parts: (string | null | undefined)[]): string {
   return toLatinDigits(parts.filter(Boolean).join(' ')).toLowerCase();
 }
 
-/** Every live income, expense and loan as a display row, newest first. */
-export function buildActivities(incomes: Income[], expenses: Expense[], loans: Loan[]): Activity[] {
+/**
+ * Every live income, expense and loan as a display row, newest first. `categories` are the
+ * ones the user added — without them their entries would fall back to অন্যান্য.
+ */
+export function buildActivities(
+  incomes: Income[],
+  expenses: Expense[],
+  loans: Loan[],
+  categories: Category[] = [],
+): Activity[] {
+  const expenseCategories = categorySet('EXPENSE', categories);
+  const incomeSources = categorySet('INCOME', categories);
   const items: Activity[] = [];
   for (const i of incomes) {
     if (i.isDeleted) continue;
-    const source = incomeSourceMeta(i.source);
+    const source = incomeSources.find(i.source);
     items.push({
       id: i.id,
       kind: 'income',
@@ -73,7 +83,7 @@ export function buildActivities(incomes: Income[], expenses: Expense[], loans: L
   }
   for (const e of expenses) {
     if (e.isDeleted) continue;
-    const meta = categoryMeta(e.category);
+    const meta = expenseCategories.meta(e.category);
     items.push({
       id: e.id,
       kind: 'expense',

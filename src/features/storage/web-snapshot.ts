@@ -43,6 +43,7 @@ export function saveWebSnapshots(store: StoreApi<DataState>): void {
       incomes: s.incomes,
       expenses: s.expenses,
       loans: s.loans,
+      categories: s.categories,
       summaries: s.summaries,
       practicals: s.practicals,
       profile: s.profile,
