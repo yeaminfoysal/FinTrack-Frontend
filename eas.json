@@ -3,19 +3,26 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "base": {
+      "node": "24.11.1"
+    },
     "preview": {
+      "extends": "base",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://fintrack-backend-x19d.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://fintrack-backend-x19d.onrender.com",
+        "EXPO_PUBLIC_ENABLE_DEMO": "true"
       }
     },
     "production": {
+      "extends": "base",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://fintrack-backend-x19d.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://fintrack-backend-x19d.onrender.com",
+        "EXPO_PUBLIC_ENABLE_DEMO": "true"
       }
     }
   }
