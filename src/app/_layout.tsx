@@ -16,24 +16,41 @@ import { PageTitle } from '@/components/page-title';
 import { AppFrame } from '@/components/ui/app-frame';
 import { DialogHost } from '@/components/ui/dialog-host';
 import { ToastHost } from '@/components/ui/toast-host';
+import { useReminders } from '@/hooks/use-reminders';
+import { localDigits } from '@/lib/digits';
 import { ThemeProvider } from '@/providers/theme-provider';
 import { useDataStore } from '@/stores/data';
 import { useSessionStore } from '@/stores/session';
 import { useSyncStore } from '@/stores/sync';
+import { showToast } from '@/stores/ui';
 
 // Keep the splash screen up until the app fonts are ready, so text never flashes in a fallback face.
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+/** Writes the standing entries that have come due and says so, since they weren't typed. */
+function catchUpRecurring(): void {
+  const written = useDataStore.getState().runRecurring();
+  if (written > 0) {
+    showToast({ message: `${localDigits(written)}টি নিয়মিত এন্ট্রি যোগ হয়েছে` });
+  }
+}
 
 function AuthGate({ children }: { children: ReactNode }) {
   const status = useSessionStore((s) => s.status);
   const hydrate = useSessionStore((s) => s.hydrate);
   const initData = useDataStore((s) => s.init);
+  const dataReady = useDataStore((s) => s.ready);
+  const onboardingDone = useDataStore((s) => s.onboardingDone);
   const segments = useSegments();
   const router = useRouter();
+
+  useReminders();
 
   useEffect(() => {
     initData();
     hydrate();
+    // Standing entries have no cron on a phone, so opening the app catches up on them.
+    catchUpRecurring();
   }, [initData, hydrate]);
 
   // Auto-pull when app returns to foreground (covers both native & web focus).
@@ -42,8 +59,9 @@ function AuthGate({ children }: { children: ReactNode }) {
     if (status !== 'authenticated') return;
     const sub = AppState.addEventListener('change', (nextState) => {
       if (appState.current.match(/inactive|background/) && nextState === 'active') {
-        // A month may have ended while the app sat in the background.
+        // A month may have ended — and standing entries come due — while the app sat in the background.
         useDataStore.getState().closeMonths();
+        catchUpRecurring();
         useSyncStore.getState().pull();
       }
       appState.current = nextState;
@@ -58,8 +76,11 @@ function AuthGate({ children }: { children: ReactNode }) {
       router.replace('/login');
     } else if (status === 'authenticated' && inAuthGroup) {
       router.replace('/');
+    } else if (status === 'authenticated' && dataReady && !onboardingDone && segments[0] !== 'onboarding') {
+      // Nothing in the app makes sense before the opening balance, so first run goes here.
+      router.replace('/onboarding');
     }
-  }, [status, segments, router]);
+  }, [status, dataReady, onboardingDone, segments, router]);
 
   return children;
 }
@@ -92,8 +113,10 @@ export default function RootLayout() {
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="(auth)" />
+              <Stack.Screen name="onboarding" />
               <Stack.Screen name="settings" />
               <Stack.Screen name="categories" />
+              <Stack.Screen name="recurring" />
               <Stack.Screen name="add" options={{ presentation: 'modal' }} />
               <Stack.Screen name="add-income" options={{ presentation: 'modal' }} />
               <Stack.Screen name="add-expense" options={{ presentation: 'modal' }} />

@@ -33,6 +33,7 @@
 | Secure tokens | **expo-secure-store** |
 | Offline DB | **expo-sqlite** (web-এ localStorage snapshot) |
 | PDF | **expo-print** + **expo-sharing** |
+| রিমাইন্ডার | **expo-notifications** (শুধু লোকাল; web-এ no-op) |
 | Test | Jest + jest-expo |
 
 **এখনো যোগ করা হয়নি (দরকার হলে তখন install করবে):**
@@ -65,7 +66,8 @@ src/
   app/                    # Expo Router routes (screens)
     (auth)/               # login, register, forgot-password
     (tabs)/               # index (হোম), transactions (লেনদেন), loans (পাওনা-দেনা), report (রিপোর্ট)
-    add*.tsx, settings.tsx, categories.tsx
+    onboarding.tsx        # প্রথম রান: শুরুর সেভিংস + হিসাব মেলানোর ব্যাখ্যা
+    add*.tsx, settings.tsx, categories.tsx, recurring.tsx
     _layout.tsx           # root: fonts, theme, auth gate, toast/dialog host
   components/             # screen-এর অংশ: activity-list, charts, month-switcher, forms/ …
     ui/                   # design system: Text, Button, Card, ListRow, BottomSheet, AmountText …
@@ -74,6 +76,7 @@ src/
     records/              # income/expense/loan-এর shared add/edit/delete/restore
     income/ expense/ loan/
     category/             # ব্যবহারকারীর নিজের খরচ-ক্যাটাগরি / আয়-উৎস
+    recurring/            # নিয়মিত লেনদেন (rule) + due হওয়া occurrence-এর catch-up
     balance/              # practical balance + auto-adjust
     summary/              # month-close
     profile/ account/     # profile; init, demo seed, account বদল
@@ -82,7 +85,9 @@ src/
   lib/
     api/                  # axios instance + endpoints + refresh interceptor
     db/                   # SQLite: migrations, repositories, demo seed
-    calc/                 # ⭐ pure calculation functions (§A–§F) + month index — heavily unit-tested
+    calc/                 # ⭐ pure calculation functions (§A–§F) + month index + recurring — heavily unit-tested
+    notifications.ts      # লোকাল রিমাইন্ডার schedule (pure plan* ফাংশন unit-tested)
+    loan-due.ts           # লোনের ফেরতের তারিখ কত দূরে / পেরিয়ে গেছে কিনা
     activity.ts           # লেনদেন timeline: row, day grouping, search/filter
     money.ts · date.ts · digits.ts
   stores/                 # Zustand: data (slice জোড়া দেয়), session, sync, ui
@@ -158,13 +163,27 @@ Net Worth = Practical Balance + Outstanding Lent − Outstanding Borrowed
 ```
 - Practical না দিলে Practical-এর জায়গায় **Theoretical Balance** ধরো — তখন untracked = 0, অর্থাৎ হাতে থাকা টাকা = theoretical ধরা হচ্ছেই। কখনো ৳0 ধরবে না (তাহলে শুধু loan থেকে negative net worth আসে)।
 
-### Loan নিয়ম (Lend + Borrow)
+### Loan নিয়ম (Lend + Borrow + আংশিক পরিশোধ)
 | direction | অর্থ | Theoretical-এ |
 | --- | --- | --- |
 | **LENT** (ধার দেওয়া) | পাওনা/asset, cash কমে | **বিয়োগ** |
 | **BORROWED** (ধার নেওয়া) | দেনা/liability, cash বাড়ে | **যোগ** |
-- Outstanding = sum of **Active** loans (settled বাদ), global running total — মাসে মাসে আবার গোনা হয় না।
-- BORROWED **income নয়**; settle (Repay) **expense নয়** — শুধু দায় নিষ্পত্তি।
+
+```
+Loan Outstanding = Loan.amount − (সেই loan-এর live LoanPayment গুলোর যোগফল)
+Outstanding Lent/Borrowed = ওই direction-এর সব live loan-এর outstanding-এর যোগফল
+```
+- **নিষ্পত্তি = LoanPayment** (`src/lib/types.ts`)। পুরোটা একবারে ফেরত দেওয়াও একটা payment (বাকিটার সমান), তাই আংশিক আর পূর্ণ — দুটোরই এক ইতিহাস। `settleLoan()` সেই payment-টা বানিয়ে তার id ফেরত দেয় (undo-র জন্য)।
+- **Legacy:** এই version-এর আগে settle হওয়া row-তে কোনো payment নেই — সেগুলোর `status='SETTLED'` মানে পুরো amount ফেরত (`paidOnLoan` এটা সামলায়)। নতুন loan-এ `status` আর বদলায় না।
+- Outstanding **global running total** — মাসে মাসে আবার গোনা হয় না। বন্ধ হওয়া মাসের জন্য `outstandingLoansAt()` শুধু **ওই সময়ের আগের** payment গুলো ধরে।
+- Overpayment-এ outstanding negative হয় না (`paidOnLoan` amount-এ cap করে), কিন্তু cash movement পুরোটাই ধরা হয় — টাকাটা তো সত্যিই নড়েছে।
+- BORROWED **income নয়**; repay **expense নয়** — শুধু দায় নিষ্পত্তি।
+- **dueDate** (ঐচ্ছিক, ভবিষ্যতের তারিখ হতে পারে) — শুধু UI badge ও রিমাইন্ডারের জন্য; §A–§F-এ কোনো প্রভাব নেই।
+
+### Practical balance-এ loan-এর cash (⚠️ double-count এড়াও)
+- `loanCashEvents(loan)` শুধু **দেওয়া/নেওয়ার** movement দেয়। যে টাকা ফেরত আসে সেটা `loanPaymentCashEvents(payment, direction)`-এর — payment নিজের movement নিজে বহন করে।
+- `loanCashEvents`-এর `SETTLED` শাখাটা **শুধু legacy** row-এর জন্য (যার payment নেই)। নতুন loan কখনো SETTLED হয় না, তাই দুটো পথ কখনো একসাথে চলে না।
+- Loan delete করলে তার payment গুলোও একই `deletedAt` নিয়ে delete হয় (restore ঠিক সেগুলোকেই ফেরায়) — নাহলে payment-এর cash event ঝুলে থেকে ব্যালেন্স drift করত।
 
 ---
 
@@ -217,7 +236,7 @@ Default ৮টি expense category ও ৫টি income source `src/constants/ca
 - **UUID** client-এ generate হয় (`expo-crypto` বা `Crypto.randomUUID()`); local ও server একই id।
 
 ### Sync Flow
-- Synced: income, expense, loan, **category**, monthly_summary, practical_balance।
+- Synced: income, expense, loan, **loan_payment**, **recurring**, category, monthly_summary, practical_balance।
 - **Push:** `syncStatus='PENDING'` রেকর্ডগুলো `POST /sync/push`-এ পাঠাও → success হলে `SYNCED`, fail হলে `FAILED`।
 - **Pull:** `GET /sync/pull?since=<cursor>` → cursor-এর পরে server যে রেকর্ড লিখেছে (নতুন/updated/deleted) → **Last-Write-Wins** (`updatedAt` দিয়ে) SQLite-এ merge → cursor = response-এর `serverTime` (meta `lastSyncTime`)।
   - Cursor server-এর ঘড়িতে: server প্রতিটি write-এ `serverUpdatedAt` বসায় আর pull সেটা দিয়ে filter করে (৬০ সেকেন্ড overlap সহ)। তাই অন্য device offline-এ edit করে পরে push করলেও মিস হয় না।
@@ -236,11 +255,13 @@ Default ৮টি expense category ও ৫টি income source `src/constants/ca
 - **income**: `id, amount, source, date, note, isDeleted, deletedAt, syncStatus, createdAt, updatedAt`
 - **expense**: `id, amount, category, date, description, isDeleted, deletedAt, syncStatus, createdAt, updatedAt`
 - **category**: `id, kind('EXPENSE'|'INCOME'), label, icon, iconName, isDeleted, deletedAt, syncStatus, createdAt, updatedAt` — ব্যবহারকারীর নিজের খরচ-ক্যাটাগরি / আয়-উৎস। `expense.category` ও `income.source`-এ এই row-এর `id` বসে।
-- **loan**: `id, direction('LENT'|'BORROWED'), personName, amount, date, note, status('ACTIVE'|'SETTLED'), settledDate, isDeleted, deletedAt, syncStatus, createdAt, updatedAt`
+- **loan**: `id, direction('LENT'|'BORROWED'), personName, amount, date, note, status('ACTIVE'|'SETTLED'), settledDate, dueDate, isDeleted, deletedAt, syncStatus, createdAt, updatedAt` — `status/settledDate` **legacy** (§Loan নিয়ম), `dueDate` ঐচ্ছিক ও ভবিষ্যতের তারিখ হতে পারে
+- **loan_payment**: `id, loanId, amount, date, note, isDeleted, deletedAt, syncStatus, createdAt, updatedAt` — একটা loan-এর ফেরত আসা টাকা (আংশিক বা পুরোটা)। `loanId`-তে foreign key নেই: sync-এ payment তার loan-এর আগেও পৌঁছাতে পারে।
+- **recurring**: `id, kind('EXPENSE'|'INCOME'), amount, category, note, frequency('DAILY'|'WEEKLY'|'MONTHLY'), anchor, startDate, lastRunDay, isPaused, isDeleted, deletedAt, syncStatus, createdAt, updatedAt` — নিয়মিত লেনদেনের **template** (§Recurring)
 - **monthly_summary**: `id, year, month, openingBalance, totalIncome, totalDailyExpense, outstandingLent, outstandingBorrowed, untrackedExpense, monthlySaving, closingBalance, practicalBalance, isDeleted, deletedAt, syncStatus, createdAt, updatedAt` (unique: `year+month`)
 - **practical_balance**: `monthKey, cash, bank, mfs, amount, countedAt, updatedAt, syncStatus` — প্রতি মাসে একটি। Server-এ `PracticalBalance` (userId + monthKey) হিসেবে sync হয়; month-close-এ `amount` `monthly_summary.practicalBalance`-এ যায়।
   - **Auto-adjust** (`src/lib/calc/practical.ts`): entry add/edit/delete/settle হলে practical শুধু তখনই বদলায় যখন টাকার movement `countedAt`-এর পরে হয়েছে — আগের দিনের movement গোনা টাকার ভেতরেই আছে; একই দিনে entry কখন লেখা হয়েছে সেটা দেখা হয়। তাই আগের তারিখের ভুলে-যাওয়া খরচ লিখলে untracked কমে। Loan settle-এর টাকা settle-এর মাসে ফেরে।
-- **meta/kv**: `lastSyncedAt`, `lastClosedMonth` ইত্যাদি (MMKV বা SecureStore বা ছোট kv table)।
+- **meta/kv** (sync হয় না — ডিভাইসের নিজের): `lastSyncTime`, `lastSyncedAt`, `profile`, `ownerEmail`, `onboardingDone`, `reminders` (রিমাইন্ডার সেটিংস JSON), শেষ ব্যবহৃত category/source।
 
 Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `name`, `email`।
 
@@ -306,6 +327,12 @@ Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `na
 - Amount দেখাতে `AmountText`/`formatTaka` (consistent `৳` format, paisa→display)।
 - **Font size শুধু `textSize` scale থেকে** (`src/constants/typography.ts`: xs 12 · sm 13 · md 14 · lg 16 · xl 20 · display 32)। নতুন সংখ্যা বসাবে না; `AmountText size` এই key নেয়।
 - **Reusable:** নিচ থেকে ওঠা sheet = `BottomSheet`; icon + title/subtitle + trailing সারি = `ListRow` (একসাথে `ListGroup`-এ); মাস বদল = `MonthSwitcher`; chart = `components/charts.tsx` (plain `View` bar, library নেই)।
+- ⌨️ **কীবোর্ড:** Android SDK 54+ থেকে edge-to-edge, আর edge-to-edge-এ `adjustResize` আর উইন্ডো ছোট করে না — তাই `KeyboardAvoidingView` দিয়ে কিছু হয় না, নিচের ফিল্ড কীবোর্ডের পেছনে চলে যায়। এর সমাধান দুটো জায়গায়:
+  - স্ক্রিনে text input থাকলে ScrollView-এর বদলে **`KeyboardScrollView`** (`src/components/ui/keyboard-scroll-view.tsx`) — ModalShell ও AuthShell এটাই ব্যবহার করে। এটা কীবোর্ড যতটুকু ঢাকছে ততটুকু scroll করার জায়গা যোগ করে আর ফোকাস করা ফিল্ডটাকে উপরে নিয়ে আসে (iOS-এ `automaticallyAdjustKeyboardInsets`)।
+  - `BottomSheet` `useKeyboardOverlap()` দিয়ে নিজেই উপরে ওঠে।
+  - নতুন কোনো TextInput বানালে তার `onFocus`-এ `useScrollFocusedIntoView()?.()` ডাকো — কীবোর্ড আগে থেকে খোলা থাকলে শুধু ফোকাস বদলের খবরেই scroll করতে হয় (`Field`/`AmountInput` এভাবেই করা)।
+  - ⚠️ কীবোর্ডের উচ্চতা সরাসরি না ধরে **কতটুকু ঢাকছে তা মেপে** নেওয়া হয় — যেখানে উইন্ডো সত্যিই resize হয় সেখানে মাপটা ০ আসে, তাই কোথাও দুইবার সরে না।
+- ⚠️ **`ListRow`-এর `trailing`-এ আর একটা Pressable/Button বসাবে না** — web-এ `<button>`-এর ভেতর `<button>` invalid (hydration error)। পাশে আলাদা control দরকার হলে সারিটা একটা row `View`-তে মুড়ে ListRow-এর বাইরে বসাও (`src/app/recurring.tsx`-এর `RuleRow` দেখো)।
 - **Tabs:** হোম · লেনদেন · ＋ · পাওনা-দেনা (`loans`) · রিপোর্ট। Practical balance ইনপুট ("হিসাব মেলানো") আলাদা tab নয় — Home-এর untracked card থেকে `PracticalBalanceSheet` খোলে। দিন অনুযায়ী লেনদেন তালিকা + search/filter লেনদেন tab-এ (`src/lib/activity.ts`)।
 - **লম্বা list virtualized:** পুরো screen জুড়ে list হলে `<Screen scroll={false} padded={false}>` + `SectionList`/`FlatList` (`contentContainerStyle={screenListContentStyle}`)। ছোট, সীমিত list (Home-এর ৮টা entry, মাসের তালিকা) ScrollView-এ থাকতে পারে।
 
@@ -322,7 +349,49 @@ Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `na
 - **History:** previous months summary (income/expense/untracked/saving + opening/closing), income/expense/loan/saving history।
 - **PDF Report:** client-side (expo-print), মাসিক report (বাংলা font embed)।
 - **Categories:** নিজের খরচ-ক্যাটাগরি ও আয়-উৎস যোগ/এডিট/ডিলিট (নিচের §Categories)।
-- **Settings:** opening savings, currency, timezone, theme, sync status, logout।
+- **Onboarding:** প্রথম রানে ৩ ধাপ (নিচের §Onboarding)।
+- **Recurring:** নিয়মিত আয়/খরচ (নিচের §Recurring)।
+- **Reminders:** দৈনিক “আজকের খরচ লিখেছেন?” ও লোনের ফেরতের তারিখ (নিচের §Reminders)।
+- **Settings:** opening savings, currency, timezone, theme, sync status, রিমাইন্ডার, logout।
+
+---
+
+## 🔁 Recurring — নিয়মিত লেনদেন
+
+বাসা ভাড়া, বেতন, ইন্টারনেট বিল — যা প্রতিবার একই। Rule একটা **template**, টাকা নয়।
+
+- **Occurrence → সাধারণ entry।** Rule due হলে একটা সাধারণ `income`/`expense` লেখা হয়; এর পরের সব হিসাব (§A–§F, month-close, report) আলাদা করে কিছু জানে না। Rule নিজে কোনো cash movement করে না (`cashEvents: () => []`)।
+- **Catch-up, cron নয়** — month-close-এর মতোই app open ও foreground-এ চলে (`runRecurring()`, `src/app/_layout.tsx`-এর `catchUpRecurring`)। `lastRunDay` থেকে আজ পর্যন্ত যা বাদ পড়েছে সব লেখা হয়, সর্বোচ্চ `MAX_CATCH_UP` (৬০) টা।
+- **Idempotent — id দিয়ে।** প্রতিটা occurrence-এর id `uuidFrom('recurring:<ruleId>:<day>')` — deterministic, তাই দুই ডিভাইস একই occurrence লিখলে sync-এ **একটাই row** হয়। যে entry আগে থেকেই আছে (ব্যবহারকারীর মুছে দেওয়া tombstone সহ) সেটা আর লেখা হয় না। ⚠️ এর জন্যই `addIncome/addExpense`-এ ঐচ্ছিক `id` আছে — অন্য কোথাও ব্যবহার কোরো না।
+- MONTHLY-তে `anchor` = মাসের তারিখ (৩১ দিলে ছোট মাসে শেষ দিনে), WEEKLY-তে weekday (০ = রবিবার), DAILY-তে অব্যবহৃত।
+- Pause (`isPaused`) rule-টা রেখে দেয়, শুধু generate বন্ধ করে। Rule delete করলে আগের entry গুলো থেকে যায়।
+- Pure অংশ `src/lib/calc/recurring.ts` (`dueOccurrences`, `occurrenceId`, `frequencyLabelBn`) — unit-tested।
+
+---
+
+## 🚀 Onboarding (প্রথম রান)
+
+`src/app/onboarding.tsx` — ৩ ধাপ: অ্যাপ কী করে → **এখন হাতে মোট কত আছে** → আনট্র্যাকড খরচ কীভাবে ধরা পড়ে (ব্যবহারকারীর নিজের অঙ্ক দিয়ে উদাহরণ)।
+
+- ধাপ ২ একই সাথে `openingSavings` **আর** চলতি মাসের practical balance বসায় → প্রথম দিনেই untracked = 0, হিসাব মিলে শুরু হয়।
+- `onboardingDone` meta-তে থাকে (sync হয় না)। Gate `src/app/_layout.tsx`-এ: authenticated + data ready + `!onboardingDone` → `/onboarding`।
+- ⚠️ **পুরোনো ব্যবহারকারীকে আবার onboarding দেখানো যাবে না।** `init()`-এ `hasStarted()` — কোনো entry বা `openingSavings > 0` থাকলেই done ধরা হয়, flag না থাকলেও। Demo seed-ও done।
+
+---
+
+## 🔔 Reminders (লোকাল নোটিফিকেশন)
+
+`src/lib/notifications.ts` — সব লোকাল, সার্ভার লাগে না।
+
+- **দৈনিক:** “আজকের খরচ লিখেছেন?” — আগামী ৭ দিনের জন্য আলাদা আলাদা DATE trigger। **আজকের দিনটা বাদ যায় যদি আজ কোনো খরচ লেখা হয়ে থাকে** (অপ্রয়োজনীয় নোটিফিকেশনই মানুষকে নোটিফিকেশন বন্ধ করায়)।
+- **লোন:** যে লোনের `dueDate` আজ বা পরে আর এখনো বাকি আছে, সেই দিন সকাল ১০টায়।
+- **Reschedule মানে সব মুছে নতুন করে** (`cancelAllScheduledNotificationsAsync` → schedule) — তাই idempotent। `useReminders()` hook (`src/hooks/use-reminders.ts`) settings, “আজ কিছু লেখা হয়েছে কিনা” আর due-date signature বদলালে চালায়।
+- ⚠️ **`expo-notifications` কখনো ফাইলের উপরে import কোরো না।** Android Expo Go-তে (SDK 53+) এর push-token auto-registration **module scope-এ throw করে** — পরের কোনো try/catch সেটা ধরতে পারে না, আর root layout এটা import করায় **পুরো অ্যাপ ক্র্যাশ** করত। তাই `notifications()`-এর ভেতরে **lazy `require`**, একবার চেষ্টা করে ফল মনে রাখে।
+- ⚠️ **Expo Go-তে require-টাও করা হয় না** — `isRunningInExpoGo()` (`expo` থেকে) দিয়ে আগেই বাদ। চেষ্টা করে ধরলে ক্র্যাশ হয় না ঠিকই, কিন্তু লাল error log-টা তবুও আসে; একমাত্র চুপচাপ পথ হলো চেষ্টাই না করা।
+- `notificationsAvailable()` বলে এখানে আদৌ schedule করা যাবে কিনা (web ও Android Expo Go-তে false); সেটিংস স্ক্রিন তখন "ডেভেলপমেন্ট বিল্ড লাগবে" লেখা দেখায়। কোনো রিমাইন্ডার চালু না থাকলে `rescheduleReminders` native module ছোঁয়ও না।
+- permission না দিলে চুপচাপ ০টা schedule হয় — কোনো crash নেই। ⚠️ আসল নোটিফিকেশন যাচাই করতে **dev build** লাগবে।
+- সেটিংস meta-তে (`reminders`), sync হয় না — কোন ফোনে কী নোটিফিকেশন চাই সেটা ওই ফোনের ব্যাপার। Store: `src/stores/reminders.ts`।
+- Pure plan ফাংশন (`planDailyReminders`, `planLoanReminders`) unit-tested; schedule করার অংশটা নয়।
 
 ---
 

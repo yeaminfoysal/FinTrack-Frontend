@@ -20,13 +20,17 @@ import {
   toExpense,
   toIncome,
   toLoan,
+  toLoanPayment,
   toPractical,
+  toRecurring,
   toSummary,
   upsertCategory,
   upsertExpense,
   upsertIncome,
   upsertLoan,
+  upsertLoanPayment,
   upsertPractical,
+  upsertRecurring,
   upsertSummary,
 } from '@/lib/db/repo';
 import { shouldApplyIncoming } from '@/lib/records';
@@ -105,6 +109,8 @@ const byId = (row: { id: string }) => row.id;
 const byMonthKey = (row: PracticalBalance) => row.monthKey;
 const byYearMonth = (row: MonthlySummary) => `${row.year}-${row.month}`;
 const newestDateFirst = (a: { date: string }, b: { date: string }) => b.date.localeCompare(a.date);
+/** Repayments read as the order they were made in, like the repo's query. */
+const oldestDateFirst = (a: { date: string }, b: { date: string }) => a.date.localeCompare(b.date);
 /** Categories keep the order they were added in — the order the chips show. */
 const oldestCreatedFirst = (a: { createdAt: string }, b: { createdAt: string }) => a.createdAt.localeCompare(b.createdAt);
 const newestMonthFirst = (a: MonthlySummary, b: MonthlySummary) => b.year * 100 + b.month - (a.year * 100 + a.month);
@@ -159,7 +165,9 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         incomes: (response.incomes ?? []).map(toIncome),
         expenses: (response.expenses ?? []).map(toExpense),
         loans: (response.loans ?? []).map(toLoan),
+        loanPayments: (response.loanPayments ?? []).map(toLoanPayment),
         categories: (response.categories ?? []).map(toCategory),
+        recurrings: (response.recurrings ?? []).map(toRecurring),
         summaries: (response.monthlySummaries ?? []).map(toSummary),
         practicals: (response.practicalBalances ?? []).map(toPractical),
       };
@@ -167,7 +175,9 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         incomes: incoming.incomes.length,
         expenses: incoming.expenses.length,
         loans: incoming.loans.length,
+        loanPayments: incoming.loanPayments.length,
         categories: incoming.categories.length,
+        recurrings: incoming.recurrings.length,
         summaries: incoming.summaries.length,
         practicals: incoming.practicals.length,
         serverTime: response.serverTime,
@@ -185,8 +195,16 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           for (const r of incoming.loans) {
             if (shouldApplyIncoming(getRecordVersion(db, 'loan', r.id), r)) upsertLoan(db, { ...r, syncStatus: 'SYNCED' });
           }
+          for (const r of incoming.loanPayments) {
+            if (shouldApplyIncoming(getRecordVersion(db, 'loan_payment', r.id), r))
+              upsertLoanPayment(db, { ...r, syncStatus: 'SYNCED' });
+          }
           for (const r of incoming.categories) {
             if (shouldApplyIncoming(getRecordVersion(db, 'category', r.id), r)) upsertCategory(db, { ...r, syncStatus: 'SYNCED' });
+          }
+          for (const r of incoming.recurrings) {
+            if (shouldApplyIncoming(getRecordVersion(db, 'recurring', r.id), r))
+              upsertRecurring(db, { ...r, syncStatus: 'SYNCED' });
           }
           for (const r of incoming.summaries) {
             if (shouldApplyIncoming(getSummaryVersion(db, r.year, r.month), r)) upsertSummary(db, { ...r, syncStatus: 'SYNCED' });
@@ -203,7 +221,9 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           incomes: mergeRows(s.incomes, incoming.incomes, byId).sort(newestDateFirst),
           expenses: mergeRows(s.expenses, incoming.expenses, byId).sort(newestDateFirst),
           loans: mergeRows(s.loans, incoming.loans, byId).sort(newestDateFirst),
+          loanPayments: mergeRows(s.loanPayments, incoming.loanPayments, byId).sort(oldestDateFirst),
           categories: mergeRows(s.categories, incoming.categories, byId).sort(oldestCreatedFirst),
+          recurrings: mergeRows(s.recurrings, incoming.recurrings, byId).sort(oldestCreatedFirst),
           summaries: mergeRows(s.summaries, incoming.summaries, byYearMonth).sort(newestMonthFirst),
           practicals: practicalsByMonth(mergeRows(Object.values(s.practicals), incoming.practicals, byMonthKey)),
         });
@@ -261,7 +281,9 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           incomes: s.incomes.filter(isPending),
           expenses: s.expenses.filter(isPending),
           loans: s.loans.filter(isPending),
+          loanPayments: s.loanPayments.filter(isPending),
           categories: s.categories.filter(isPending),
+          recurrings: s.recurrings.filter(isPending),
           monthlySummaries: s.summaries.filter(isPending),
           practicalBalances: Object.values(s.practicals).filter(isPending),
         };
@@ -277,7 +299,9 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         incomes: pending.incomes.length,
         expenses: pending.expenses.length,
         loans: pending.loans.length,
+        loanPayments: pending.loanPayments.length,
         categories: pending.categories.length,
+        recurrings: pending.recurrings.length,
         summaries: pending.monthlySummaries.length,
         practicals: pending.practicalBalances.length,
       });
@@ -286,7 +310,9 @@ export const useSyncStore = create<SyncState>((set, get) => ({
         incomes: pending.incomes.map(toOutgoing),
         expenses: pending.expenses.map(toOutgoing),
         loans: pending.loans.map(toOutgoing),
+        loanPayments: pending.loanPayments.map(toOutgoing),
         categories: pending.categories.map(toOutgoing),
+        recurrings: pending.recurrings.map(toOutgoing),
         monthlySummaries: pending.monthlySummaries.map(toOutgoing),
         practicalBalances: pending.practicalBalances.map(toOutgoing),
       });
@@ -298,7 +324,9 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           incomes: pending.incomes,
           expenses: pending.expenses,
           loans: pending.loans,
+          loanPayments: pending.loanPayments,
           categories: pending.categories,
+          recurrings: pending.recurrings,
           summaries: pending.monthlySummaries,
           practicals: pending.practicalBalances,
         });
@@ -309,7 +337,9 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           incomes: markSent(latest.incomes, pending.incomes, byId),
           expenses: markSent(latest.expenses, pending.expenses, byId),
           loans: markSent(latest.loans, pending.loans, byId),
+          loanPayments: markSent(latest.loanPayments, pending.loanPayments, byId),
           categories: markSent(latest.categories, pending.categories, byId),
+          recurrings: markSent(latest.recurrings, pending.recurrings, byId),
           summaries: markSent(latest.summaries, pending.monthlySummaries, byId),
           practicals: practicalsByMonth(markSent(Object.values(latest.practicals), pending.practicalBalances, byMonthKey)),
         });

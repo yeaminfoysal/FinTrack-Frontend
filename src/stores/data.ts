@@ -16,6 +16,7 @@ import { createExpenseSlice } from '@/features/expense/expense-slice';
 import { createIncomeSlice } from '@/features/income/income-slice';
 import { createLoanSlice } from '@/features/loan/loan-slice';
 import { createProfileSlice } from '@/features/profile/profile-slice';
+import { createRecurringSlice } from '@/features/recurring/recurring-slice';
 import { saveWebSnapshots } from '@/features/storage/web-snapshot';
 import { closeMonthsOnChange, createMonthCloseSlice } from '@/features/summary/month-close';
 
@@ -25,6 +26,7 @@ export const useDataStore = create<DataState>()((...a) => ({
   ...createExpenseSlice(...a),
   ...createLoanSlice(...a),
   ...createCategorySlice(...a),
+  ...createRecurringSlice(...a),
   ...createPracticalSlice(...a),
   ...createProfileSlice(...a),
   ...createMonthCloseSlice(...a),
@@ -39,5 +41,6 @@ export {
   type AddExpenseInput,
   type AddIncomeInput,
   type AddLoanInput,
+  type AddRecurringInput,
 } from '@/features/data-state';
 export { countPending } from '@/features/sync/pending';

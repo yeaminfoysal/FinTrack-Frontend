@@ -5,6 +5,8 @@ export type LoanDirection = 'LENT' | 'BORROWED';
 export type LoanStatus = 'ACTIVE' | 'SETTLED';
 /** Whether a category labels an expense or an income. */
 export type CategoryKind = 'EXPENSE' | 'INCOME';
+/** How often a standing entry repeats. */
+export type RecurringFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY';
 
 export interface BaseRecord {
   id: string;
@@ -49,8 +51,49 @@ export interface Loan extends BaseRecord {
   amount: number;
   date: string; // ISO
   note: string | null;
+  /**
+   * Legacy one-shot settle. A loan settled from this version on records a LoanPayment
+   * instead, so `status` stays ACTIVE and what is left comes from its payments.
+   */
   status: LoanStatus;
   settledDate: string | null;
+  /** When the money is expected back — optional, and it may be in the future. */
+  dueDate: string | null;
+}
+
+/**
+ * Money paid back against a loan: an instalment returned on a LENT loan, a repayment
+ * made on a BORROWED one. A loan is settled once its payments reach its amount, so a
+ * partial repayment simply lowers what is outstanding.
+ */
+export interface LoanPayment extends BaseRecord {
+  loanId: string;
+  amount: number;
+  date: string; // ISO
+  note: string | null;
+}
+
+/**
+ * A standing entry the app writes for the user — rent, salary, an internet bill. It is a
+ * template, not money: opening the app turns the occurrences that have come due since the
+ * last run into ordinary incomes/expenses, which are what every calculation then sees.
+ */
+export interface Recurring extends BaseRecord {
+  kind: CategoryKind;
+  amount: number;
+  /** Expense category key for EXPENSE, income source key for INCOME. */
+  category: string;
+  /** Goes into the generated entry's description / note. */
+  note: string | null;
+  frequency: RecurringFrequency;
+  /** Day of the month (1–31) when MONTHLY, weekday (0 = Sunday) when WEEKLY, unused when DAILY. */
+  anchor: number;
+  /** Nothing is generated before this day (ISO). */
+  startDate: string;
+  /** The last day already generated for (DayKey); null means nothing has run yet. */
+  lastRunDay: string | null;
+  /** Paused rules stay in the list but generate nothing. */
+  isPaused: boolean;
 }
 
 export interface MonthlySummary extends BaseRecord {

@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { APP_MAX_WIDTH } from '@/components/ui/app-frame';
+import { useKeyboardOverlap } from '@/hooks/use-keyboard-overlap';
 import { IconButton } from '@/components/ui/icon-button';
 import { Text } from '@/components/ui/text';
 import { radii, withAlpha } from '@/constants/tokens';
@@ -24,6 +25,9 @@ interface BottomSheetProps {
 export function BottomSheet({ visible, onClose, title, children, scroll, gap = 12 }: BottomSheetProps) {
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
+  // The sheet sits on the bottom edge, so the keyboard covers it completely unless it is
+  // lifted by however much the keyboard actually takes (see useKeyboardOverlap).
+  const keyboard = useKeyboardOverlap();
 
   return (
     <Modal
@@ -33,7 +37,7 @@ export function BottomSheet({ visible, onClose, title, children, scroll, gap = 1
       statusBarTranslucent
       navigationBarTranslucent
       onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
+      <View style={{ flex: 1, justifyContent: 'flex-end', paddingBottom: keyboard }}>
         <Pressable
           onPress={onClose}
           accessibilityRole="button"
@@ -53,7 +57,8 @@ export function BottomSheet({ visible, onClose, title, children, scroll, gap = 1
             borderTopRightRadius: radii.xl,
             paddingTop: 8,
             paddingHorizontal: 18,
-            paddingBottom: 16 + insets.bottom,
+            // The keyboard already covers the navigation bar, so its inset would be a gap.
+            paddingBottom: 16 + (keyboard > 0 ? 0 : insets.bottom),
           }}>
           <View
             style={{
@@ -84,7 +89,7 @@ export function BottomSheet({ visible, onClose, title, children, scroll, gap = 1
             <View style={{ gap }}>{children}</View>
           )}
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

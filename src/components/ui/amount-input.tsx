@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { TextInput, View } from 'react-native';
 
+import { useScrollFocusedIntoView } from '@/components/ui/keyboard-scroll-view';
 import { Text } from '@/components/ui/text';
 import { FONT_FAMILY } from '@/constants/fonts';
 import { textSize } from '@/constants/typography';
@@ -21,6 +22,7 @@ interface AmountInputProps {
 export function AmountInput({ value, onChangeText, label = 'পরিমাণ', error, autoFocus, accent }: AmountInputProps) {
   const { tokens } = useTheme();
   const [focused, setFocused] = useState(false);
+  const scrollIntoView = useScrollFocusedIntoView();
   const paisa = toPaisa(value || '0');
 
   return (
@@ -46,7 +48,10 @@ export function AmountInput({ value, onChangeText, label = 'পরিমাণ',
           placeholderTextColor={tokens.muted}
           keyboardType="decimal-pad"
           autoFocus={autoFocus}
-          onFocus={() => setFocused(true)}
+          onFocus={() => {
+            setFocused(true);
+            scrollIntoView?.();
+          }}
           onBlur={() => setFocused(false)}
           accessibilityLabel={label}
           style={{ flex: 1, minWidth: 0, color: tokens.ink, fontSize: textSize.display, fontFamily: FONT_FAMILY.bold, paddingVertical: 6 }}

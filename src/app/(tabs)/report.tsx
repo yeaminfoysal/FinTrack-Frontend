@@ -46,6 +46,7 @@ export default function ReportScreen() {
   const expenses = useDataStore((s) => s.expenses);
   const summaries = useDataStore((s) => s.summaries);
   const loans = useDataStore((s) => s.loans);
+  const loanPayments = useDataStore((s) => s.loanPayments);
   const customCategories = useDataStore((s) => s.categories);
   const practicals = useDataStore((s) => s.practicals);
   const profile = useDataStore((s) => s.profile);
@@ -61,12 +62,13 @@ export default function ReportScreen() {
           incomes,
           expenses,
           loans,
+          payments: loanPayments,
           summaries,
           baseOpening: profile.openingSavings,
           practical: practicals[key]?.amount ?? null,
         }).saving,
       })),
-    [monthKey, incomes, expenses, loans, summaries, practicals, profile.openingSavings],
+    [monthKey, incomes, expenses, loans, loanPayments, summaries, practicals, profile.openingSavings],
   );
   const trendTotal = trend.reduce((sum, m) => sum + m.saving, 0);
   // Months before the first entry are empty bars; leave them out of the average. Shown in whole taka.
@@ -87,7 +89,16 @@ export default function ReportScreen() {
   const exportPdf = async (mode: 'share' | 'save') => {
     setExporting(mode);
     try {
-      const html = buildMonthReportHtml({ monthKey, snapshot, incomes, expenses, loans, categories: customCategories, userName: profile.name });
+      const html = buildMonthReportHtml({
+        monthKey,
+        snapshot,
+        incomes,
+        expenses,
+        loans,
+        loanPayments,
+        categories: customCategories,
+        userName: profile.name,
+      });
       if (mode === 'share') {
         await shareReportPdf(html, monthKey);
       } else {

@@ -8,7 +8,7 @@
  * balance alone — which is what lets its untracked gap close.
  */
 import { dayKeyOf, monthKeyOf, type MonthKey } from '@/lib/date';
-import type { Expense, Income, Loan, PracticalBalance } from '@/lib/types';
+import type { Expense, Income, Loan, LoanDirection, LoanPayment, PracticalBalance } from '@/lib/types';
 
 /** One movement of money into or out of the user's hands. */
 export interface CashEvent {
@@ -28,7 +28,11 @@ export function expenseCashEvents(expense: Expense): CashEvent[] {
   return expense.isDeleted ? [] : [{ date: expense.date, loggedAt: expense.createdAt, delta: -expense.amount }];
 }
 
-/** Lending takes cash out and its return brings it back; borrowing is the reverse. */
+/**
+ * Lending takes cash out, borrowing brings it in. Money coming back is a LoanPayment and
+ * carries its own event (loanPaymentCashEvents) — a loan only moves the cash it handed
+ * over. The SETTLED branch is the legacy one-shot settle, which has no payment rows.
+ */
 export function loanCashEvents(loan: Loan): CashEvent[] {
   if (loan.isDeleted) return [];
   const given: CashEvent = {
@@ -40,6 +44,21 @@ export function loanCashEvents(loan: Loan): CashEvent[] {
   // Settled without a date: nothing says when the money came back, so the loan nets to zero.
   if (!loan.settledDate) return [];
   return [given, { date: loan.settledDate, loggedAt: loan.settledDate, delta: -given.delta }];
+}
+
+/**
+ * A repayment moves money the opposite way from the loan it belongs to: cash returns on a
+ * LENT loan and leaves on a BORROWED one, in the month the repayment was made.
+ */
+export function loanPaymentCashEvents(payment: LoanPayment, direction: LoanDirection): CashEvent[] {
+  if (payment.isDeleted) return [];
+  return [
+    {
+      date: payment.date,
+      loggedAt: payment.createdAt,
+      delta: direction === 'LENT' ? payment.amount : -payment.amount,
+    },
+  ];
 }
 
 /** Did the movement happen after the balance was counted — i.e. it isn't inside the count yet? */

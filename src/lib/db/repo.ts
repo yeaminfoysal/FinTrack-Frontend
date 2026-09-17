@@ -6,8 +6,10 @@ import type {
   Expense,
   Income,
   Loan,
+  LoanPayment,
   MonthlySummary,
   PracticalBalance,
+  Recurring,
   SyncStatus,
 } from '@/lib/types';
 
@@ -73,9 +75,45 @@ export function toLoan(r: Row): Loan {
     note: (r.note as string) ?? null,
     status: r.status as Loan['status'],
     settledDate: (r.settledDate as string) ?? null,
+    dueDate: (r.dueDate as string) ?? null,
     isDeleted: b(r.isDeleted),
     deletedAt: (r.deletedAt as string) ?? null,
     syncStatus: r.syncStatus as Loan['syncStatus'],
+    createdAt: String(r.createdAt),
+    updatedAt: String(r.updatedAt),
+  };
+}
+
+export function toLoanPayment(r: Row): LoanPayment {
+  return {
+    id: String(r.id),
+    loanId: String(r.loanId),
+    amount: Number(r.amount),
+    date: String(r.date),
+    note: (r.note as string) ?? null,
+    isDeleted: b(r.isDeleted),
+    deletedAt: (r.deletedAt as string) ?? null,
+    syncStatus: r.syncStatus as LoanPayment['syncStatus'],
+    createdAt: String(r.createdAt),
+    updatedAt: String(r.updatedAt),
+  };
+}
+
+export function toRecurring(r: Row): Recurring {
+  return {
+    id: String(r.id),
+    kind: r.kind as Recurring['kind'],
+    amount: Number(r.amount),
+    category: String(r.category),
+    note: (r.note as string) ?? null,
+    frequency: r.frequency as Recurring['frequency'],
+    anchor: Number(r.anchor),
+    startDate: String(r.startDate),
+    lastRunDay: (r.lastRunDay as string) ?? null,
+    isPaused: b(r.isPaused),
+    isDeleted: b(r.isDeleted),
+    deletedAt: (r.deletedAt as string) ?? null,
+    syncStatus: r.syncStatus as Recurring['syncStatus'],
     createdAt: String(r.createdAt),
     updatedAt: String(r.updatedAt),
   };
@@ -131,6 +169,14 @@ export function getCategories(db: SQLiteDatabase): Category[] {
 export function getLoans(db: SQLiteDatabase): Loan[] {
   return db.getAllSync<Row>('SELECT * FROM loan ORDER BY date DESC').map(toLoan);
 }
+/** Oldest first, so a loan's repayments read as the order they were made in. */
+export function getLoanPayments(db: SQLiteDatabase): LoanPayment[] {
+  return db.getAllSync<Row>('SELECT * FROM loan_payment ORDER BY date').map(toLoanPayment);
+}
+/** Oldest first, so the list keeps the order the rules were added in. */
+export function getRecurrings(db: SQLiteDatabase): Recurring[] {
+  return db.getAllSync<Row>('SELECT * FROM recurring ORDER BY createdAt').map(toRecurring);
+}
 export function getSummaries(db: SQLiteDatabase): MonthlySummary[] {
   return db
     .getAllSync<Row>('SELECT * FROM monthly_summary ORDER BY year DESC, month DESC')
@@ -145,7 +191,9 @@ export function getPendingRecords(db: SQLiteDatabase) {
     incomes: db.getAllSync<Row>("SELECT * FROM income WHERE syncStatus = 'PENDING'").map(toIncome),
     expenses: db.getAllSync<Row>("SELECT * FROM expense WHERE syncStatus = 'PENDING'").map(toExpense),
     loans: db.getAllSync<Row>("SELECT * FROM loan WHERE syncStatus = 'PENDING'").map(toLoan),
+    loanPayments: db.getAllSync<Row>("SELECT * FROM loan_payment WHERE syncStatus = 'PENDING'").map(toLoanPayment),
     categories: db.getAllSync<Row>("SELECT * FROM category WHERE syncStatus = 'PENDING'").map(toCategory),
+    recurrings: db.getAllSync<Row>("SELECT * FROM recurring WHERE syncStatus = 'PENDING'").map(toRecurring),
     monthlySummaries: db.getAllSync<Row>("SELECT * FROM monthly_summary WHERE syncStatus = 'PENDING'").map(toSummary),
     practicalBalances: db
       .getAllSync<Row>("SELECT * FROM practical_balance WHERE syncStatus = 'PENDING'")
@@ -158,7 +206,7 @@ export type StoredVersion = { syncStatus: SyncStatus; updatedAt: string } | null
 
 export function getRecordVersion(
   db: SQLiteDatabase,
-  table: 'income' | 'expense' | 'loan' | 'category',
+  table: 'income' | 'expense' | 'loan' | 'loan_payment' | 'category' | 'recurring',
   id: string,
 ): StoredVersion {
   return db.getFirstSync<{ syncStatus: SyncStatus; updatedAt: string }>(
@@ -201,13 +249,18 @@ export function markAsSynced(
     incomes: SentRecord[];
     expenses: SentRecord[];
     loans: SentRecord[];
+    loanPayments: SentRecord[];
     summaries: SentRecord[];
     categories: SentRecord[];
+    recurrings: SentRecord[];
     practicals: SentPractical[];
   },
 ) {
   db.withTransactionSync(() => {
-    const mark = (table: 'income' | 'expense' | 'loan' | 'monthly_summary' | 'category', rows: SentRecord[]) => {
+    const mark = (
+      table: 'income' | 'expense' | 'loan' | 'loan_payment' | 'monthly_summary' | 'category' | 'recurring',
+      rows: SentRecord[],
+    ) => {
       for (const row of rows) {
         db.runSync(`UPDATE ${table} SET syncStatus = 'SYNCED' WHERE id = ? AND updatedAt = ?`, [row.id, row.updatedAt]);
       }
@@ -215,8 +268,10 @@ export function markAsSynced(
     mark('income', sent.incomes);
     mark('expense', sent.expenses);
     mark('loan', sent.loans);
+    mark('loan_payment', sent.loanPayments);
     mark('monthly_summary', sent.summaries);
     mark('category', sent.categories);
+    mark('recurring', sent.recurrings);
     for (const row of sent.practicals) {
       db.runSync("UPDATE practical_balance SET syncStatus = 'SYNCED' WHERE monthKey = ? AND updatedAt = ?", [
         row.monthKey,
@@ -250,11 +305,28 @@ export function upsertCategory(db: SQLiteDatabase, c: Category): void {
 }
 export function upsertLoan(db: SQLiteDatabase, l: Loan): void {
   db.runSync(
-    `INSERT OR REPLACE INTO loan (id,direction,personName,amount,date,note,status,settledDate,isDeleted,deletedAt,syncStatus,createdAt,updatedAt)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT OR REPLACE INTO loan (id,direction,personName,amount,date,note,status,settledDate,dueDate,isDeleted,deletedAt,syncStatus,createdAt,updatedAt)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      l.id, l.direction, l.personName, l.amount, l.date, l.note, l.status, l.settledDate,
+      l.id, l.direction, l.personName, l.amount, l.date, l.note, l.status, l.settledDate, l.dueDate,
       l.isDeleted ? 1 : 0, l.deletedAt, l.syncStatus, l.createdAt, l.updatedAt,
+    ],
+  );
+}
+export function upsertLoanPayment(db: SQLiteDatabase, p: LoanPayment): void {
+  db.runSync(
+    `INSERT OR REPLACE INTO loan_payment (id,loanId,amount,date,note,isDeleted,deletedAt,syncStatus,createdAt,updatedAt)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    [p.id, p.loanId, p.amount, p.date, p.note, p.isDeleted ? 1 : 0, p.deletedAt, p.syncStatus, p.createdAt, p.updatedAt],
+  );
+}
+export function upsertRecurring(db: SQLiteDatabase, r: Recurring): void {
+  db.runSync(
+    `INSERT OR REPLACE INTO recurring (id,kind,amount,category,note,frequency,anchor,startDate,lastRunDay,isPaused,isDeleted,deletedAt,syncStatus,createdAt,updatedAt)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [
+      r.id, r.kind, r.amount, r.category, r.note, r.frequency, r.anchor, r.startDate, r.lastRunDay,
+      r.isPaused ? 1 : 0, r.isDeleted ? 1 : 0, r.deletedAt, r.syncStatus, r.createdAt, r.updatedAt,
     ],
   );
 }
@@ -298,8 +370,10 @@ export function clearAllData(db: SQLiteDatabase): void {
     `DELETE FROM income;
      DELETE FROM expense;
      DELETE FROM loan;
+     DELETE FROM loan_payment;
      DELETE FROM monthly_summary;
      DELETE FROM practical_balance;
-     DELETE FROM category;`,
+     DELETE FROM category;
+     DELETE FROM recurring;`,
   );
 }

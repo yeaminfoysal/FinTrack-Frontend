@@ -57,6 +57,7 @@ export const createMonthCloseSlice: DataSlice<MonthCloseActions> = (set, get) =>
       incomes: s.incomes,
       expenses: s.expenses,
       loans: s.loans,
+      payments: s.loanPayments,
       summaries: s.summaries,
       practicalFor: (key) => {
         const local = s.practicals[key];
@@ -102,6 +103,7 @@ export function closeMonthsOnChange(store: StoreApi<DataState>): void {
       s.incomes !== prev.incomes ||
       s.expenses !== prev.expenses ||
       s.loans !== prev.loans ||
+      s.loanPayments !== prev.loanPayments ||
       s.practicals !== prev.practicals ||
       s.profile.openingSavings !== prev.profile.openingSavings
     ) {

@@ -11,33 +11,73 @@ import {
   nextMonthKey,
   parseMonthKey,
   prevMonthKey,
+  shiftDayKey,
   type DayKey,
   type MonthKey,
 } from '@/lib/date';
-import type { Expense, Income, Loan, LoanDirection, MonthlySummary } from '@/lib/types';
+import type { Expense, Income, Loan, LoanDirection, LoanPayment, MonthlySummary } from '@/lib/types';
 
 function active<T extends { isDeleted: boolean }>(rows: T[]): T[] {
   return rows.filter((r) => !r.isDeleted);
 }
 
-/** Sum of ACTIVE (non-settled, non-deleted) loans for a direction — global running total. */
-export function outstandingLoans(loans: Loan[], direction: LoanDirection): number {
-  return active(loans)
-    .filter((l) => l.direction === direction && l.status === 'ACTIVE')
-    .reduce((sum, l) => sum + l.amount, 0);
+/** The live repayments recorded against one loan. */
+export function paymentsOf(payments: LoanPayment[], loanId: string): LoanPayment[] {
+  return active(payments).filter((p) => p.loanId === loanId);
 }
 
 /**
- * Outstanding total for a direction as it stood at `atIso`: loans dated before
- * that instant and not yet settled by then. Snapshots a closed month, so
- * settling a loan later doesn't rewrite that month's figures.
+ * How much of a loan has come back. Repayments add up; a loan settled before
+ * repayments existed has none, and its legacy SETTLED status stands for the whole
+ * amount. Capped at the amount so an overpayment never makes outstanding negative.
  */
-export function outstandingLoansAt(loans: Loan[], direction: LoanDirection, atIso: string): number {
+export function paidOnLoan(loan: Loan, payments: LoanPayment[] = []): number {
+  if (loan.status === 'SETTLED') return loan.amount;
+  const paid = paymentsOf(payments, loan.id).reduce((sum, p) => sum + p.amount, 0);
+  return Math.min(loan.amount, paid);
+}
+
+/** What is still owed on a loan — 0 once the repayments reach its amount. */
+export function loanOutstanding(loan: Loan, payments: LoanPayment[] = []): number {
+  return loan.amount - paidOnLoan(loan, payments);
+}
+
+/** A loan is done when nothing is left on it (repayments that add up, or a legacy settle). */
+export function loanSettled(loan: Loan, payments: LoanPayment[] = []): boolean {
+  return loanOutstanding(loan, payments) <= 0;
+}
+
+/** Sum of what is still outstanding for a direction — global running total. */
+export function outstandingLoans(loans: Loan[], direction: LoanDirection, payments: LoanPayment[] = []): number {
+  return active(loans)
+    .filter((l) => l.direction === direction)
+    .reduce((sum, l) => sum + loanOutstanding(l, payments), 0);
+}
+
+/**
+ * Outstanding total for a direction as it stood at `atIso`: loans dated before that
+ * instant, less the repayments made by then. Snapshots a closed month, so a repayment
+ * made later doesn't rewrite that month's figures.
+ */
+export function outstandingLoansAt(
+  loans: Loan[],
+  direction: LoanDirection,
+  atIso: string,
+  payments: LoanPayment[] = [],
+): number {
   const at = new Date(atIso).getTime();
   return active(loans)
     .filter((l) => l.direction === direction && new Date(l.date).getTime() < at)
-    .filter((l) => l.status === 'ACTIVE' || (l.settledDate != null && new Date(l.settledDate).getTime() >= at))
-    .reduce((sum, l) => sum + l.amount, 0);
+    .reduce((sum, l) => {
+      // A legacy settle put the whole amount back in one go on its settledDate.
+      if (l.status === 'SETTLED') {
+        return sum + (l.settledDate != null && new Date(l.settledDate).getTime() >= at ? l.amount : 0);
+      }
+      const paid = paymentsOf(payments, l.id)
+        .filter((p) => new Date(p.date).getTime() < at)
+        .reduce((total, p) => total + p.amount, 0);
+      return sum + Math.max(0, l.amount - paid);
+    }, 0);
 }
 
 /** Total income within the current-month scope. */
@@ -77,6 +117,30 @@ export function dailyExpenses(expenses: Expense[], key: MonthKey): DayExpenses[]
       ),
     }))
     .sort((a, b) => b.day.localeCompare(a.day));
+}
+
+export interface DaySpend {
+  day: DayKey;
+  total: number;
+}
+
+/**
+ * Daily expense totals for the `count` days ending at `endDay`, oldest first.
+ * Days with nothing spent stay at 0, so the series is evenly spaced for a chart.
+ */
+export function recentDaySpends(expenses: Expense[], endDay: DayKey, count: number): DaySpend[] {
+  const days: DaySpend[] = [];
+  const slotOf = new Map<DayKey, number>();
+  for (let back = count - 1; back >= 0; back--) {
+    const day = shiftDayKey(endDay, -back);
+    slotOf.set(day, days.length);
+    days.push({ day, total: 0 });
+  }
+  for (const e of active(expenses)) {
+    const slot = slotOf.get(dayKeyOf(e.date));
+    if (slot !== undefined) days[slot].total += e.amount;
+  }
+  return days;
 }
 
 export interface CategoryTotal {
@@ -200,6 +264,8 @@ export interface MonthChainInput {
   incomes: Income[];
   expenses: Expense[];
   loans: Loan[];
+  /** Repayments against those loans, so a month keeps the balance it ended with. */
+  payments?: LoanPayment[];
   /** Already-stored summaries; their months stay in the chain even without records. */
   summaries: MonthlySummary[];
   /** Practical balance recorded for a month, if any. */
@@ -214,7 +280,7 @@ export interface MonthChainInput {
  * months. Loans are the running totals as of each month's end. Idempotent.
  */
 export function closedMonthChain(input: MonthChainInput): MonthFigures[] {
-  const { currentKey, incomes, expenses, loans, summaries, practicalFor } = input;
+  const { currentKey, incomes, expenses, loans, payments = [], summaries, practicalFor } = input;
   const keys = [
     ...byMonth(incomes).keys(),
     ...byMonth(expenses).keys(),
@@ -230,8 +296,8 @@ export function closedMonthChain(input: MonthChainInput): MonthFigures[] {
     const monthEnd = monthRangeOfKey(key).end;
     const mIncome = monthIncome(incomes, key);
     const mExpense = monthDailyExpense(expenses, key);
-    const oLent = outstandingLoansAt(loans, 'LENT', monthEnd);
-    const oBorrowed = outstandingLoansAt(loans, 'BORROWED', monthEnd);
+    const oLent = outstandingLoansAt(loans, 'LENT', monthEnd, payments);
+    const oBorrowed = outstandingLoansAt(loans, 'BORROWED', monthEnd, payments);
     const practical = practicalFor(key);
     const theoretical = theoreticalBalance({
       opening,
@@ -281,6 +347,8 @@ export interface DashboardInput {
   incomes: Income[];
   expenses: Expense[];
   loans: Loan[];
+  /** Repayments against those loans; without them every loan reads as fully outstanding. */
+  payments?: LoanPayment[];
   summaries: MonthlySummary[];
   baseOpening: number;
   practical: number | null;
@@ -288,7 +356,7 @@ export interface DashboardInput {
 
 /** One-shot dashboard computation from raw local records. */
 export function computeDashboard(input: DashboardInput): DashboardSnapshot {
-  const { monthKey, incomes, expenses, loans, summaries, baseOpening, practical } = input;
+  const { monthKey, incomes, expenses, loans, payments = [], summaries, baseOpening, practical } = input;
 
   // A closed month shows exactly what it stored, so its closing always equals the next opening.
   const { year, month } = parseMonthKey(monthKey);
@@ -320,8 +388,8 @@ export function computeDashboard(input: DashboardInput): DashboardSnapshot {
   const opening = openingForMonth(summaries, baseOpening, monthKey);
   const mIncome = monthIncome(incomes, monthKey);
   const mExpense = monthDailyExpense(expenses, monthKey);
-  const oLent = outstandingLoans(loans, 'LENT');
-  const oBorrowed = outstandingLoans(loans, 'BORROWED');
+  const oLent = outstandingLoans(loans, 'LENT', payments);
+  const oBorrowed = outstandingLoans(loans, 'BORROWED', payments);
   const theoretical = theoreticalBalance({
     opening,
     monthIncome: mIncome,

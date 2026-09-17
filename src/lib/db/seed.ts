@@ -15,8 +15,10 @@ import type {
   Expense,
   Income,
   Loan,
+  LoanPayment,
   MonthlySummary,
   PracticalBalance,
+  Recurring,
   UserProfile,
 } from '@/lib/types';
 import { uuidv4 } from '@/lib/uuid';
@@ -42,13 +44,19 @@ export interface SeedData {
   incomes: Income[];
   expenses: Expense[];
   loans: Loan[];
+  loanPayments: LoanPayment[];
   categories: Category[];
+  recurrings: Recurring[];
   summaries: MonthlySummary[];
   practicals: PracticalBalance[];
   profile: UserProfile;
 }
 
-export function buildSeed(email = 'atizoom2@gmail.com'): SeedData {
+/** Demo account identity. example.com is reserved for documentation, so it can never be a real inbox. */
+export const DEMO_NAME = 'রাফিদ হাসান';
+export const DEMO_EMAIL = 'rafid.hasan@example.com';
+
+export function buildSeed(email = DEMO_EMAIL): SeedData {
   const curKey = currentMonthKey();
   const { year, month } = parseMonthKey(curKey);
 
@@ -76,11 +84,48 @@ export function buildSeed(email = 'atizoom2@gmail.com'): SeedData {
   ];
 
 
+  // করিম's ৳9,000 is partly back already, সাব্বির's ৳7,000 is untouched and তানিয়া's was settled
+  // the old way (status only) — together they cover every shape a loan can be in.
+  // Outstanding lent stays ৳12,000: (9,000 − 4,000) + 7,000.
   const loans: Loan[] = [
-    { ...base(iso(year, month, 15)), direction: 'LENT', personName: 'করিম উদ্দিন', amount: tk(7000), date: iso(year, month, 15), note: 'জরুরি দরকারে', status: 'ACTIVE', settledDate: null },
-    { ...base(iso(year, month, 10)), direction: 'LENT', personName: 'সাব্বির আহমেদ', amount: tk(5000), date: iso(year, month, 10), note: 'বই কেনার জন্য', status: 'ACTIVE', settledDate: null },
-    { ...base(iso(year, month, 2)), direction: 'LENT', personName: 'তানিয়া রহমান', amount: tk(3000), date: iso(year, month, 2), note: null, status: 'SETTLED', settledDate: iso(year, month, 20) },
-    { ...base(iso(year, month, 5)), direction: 'BORROWED', personName: 'বড় ভাই (শাহীন)', amount: tk(20000), date: iso(year, month, 5), note: 'ল্যাপটপ কিনতে', status: 'ACTIVE', settledDate: null },
+    { ...base(iso(year, month, 15)), direction: 'LENT', personName: 'করিম উদ্দিন', amount: tk(9000), date: iso(year, month, 15), note: 'জরুরি দরকারে', status: 'ACTIVE', settledDate: null, dueDate: iso(year, month + 1, 5) },
+    { ...base(iso(year, month, 10)), direction: 'LENT', personName: 'সাব্বির আহমেদ', amount: tk(7000), date: iso(year, month, 10), note: 'বই কেনার জন্য', status: 'ACTIVE', settledDate: null, dueDate: iso(year, month, 20) },
+    { ...base(iso(year, month, 2)), direction: 'LENT', personName: 'তানিয়া রহমান', amount: tk(3000), date: iso(year, month, 2), note: null, status: 'SETTLED', settledDate: iso(year, month, 20), dueDate: null },
+    { ...base(iso(year, month, 5)), direction: 'BORROWED', personName: 'বড় ভাই (শাহীন)', amount: tk(20000), date: iso(year, month, 5), note: 'ল্যাপটপ কিনতে', status: 'ACTIVE', settledDate: null, dueDate: iso(year, month + 1, 25) },
+  ];
+
+  const [karim] = loans;
+  const loanPayments: LoanPayment[] = [
+    { ...base(iso(year, month, 21)), loanId: karim.id, amount: tk(4000), date: iso(year, month, 21), note: 'প্রথম কিস্তি' },
+  ];
+
+  // Standing entries the demo user set up. They already ran this month (lastRunDay), so
+  // opening the demo doesn't add entries on top of the figures above.
+  const recurrings: Recurring[] = [
+    {
+      ...base(iso(year, month, 1)),
+      kind: 'EXPENSE',
+      amount: tk(12000),
+      category: 'utilities',
+      note: 'বাসা ভাড়া',
+      frequency: 'MONTHLY',
+      anchor: 1,
+      startDate: iso(year, month, 1),
+      lastRunDay: `${curKey}-01`,
+      isPaused: false,
+    },
+    {
+      ...base(iso(year, month, 1)),
+      kind: 'INCOME',
+      amount: tk(55000),
+      category: 'salary',
+      note: 'বেতন',
+      frequency: 'MONTHLY',
+      anchor: 1,
+      startDate: iso(year, month, 1),
+      lastRunDay: `${curKey}-01`,
+      isPaused: false,
+    },
   ];
 
   // Closed-month chain (carry-forward): 18,500 → 22,000 → 30,000 → 45,000
@@ -138,12 +183,12 @@ export function buildSeed(email = 'atizoom2@gmail.com'): SeedData {
   ];
 
   const profile: UserProfile = {
-    name: 'রাফিদ হাসান',
+    name: DEMO_NAME,
     email,
     openingSavings: tk(18500),
     currency: 'BDT',
     timezone: 'Asia/Dhaka',
   };
 
-  return { incomes, expenses, loans, categories, summaries, practicals, profile };
+  return { incomes, expenses, loans, loanPayments, categories, recurrings, summaries, practicals, profile };
 }

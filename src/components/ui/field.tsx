@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 
 import { IconButton } from '@/components/ui/icon-button';
+import { useScrollFocusedIntoView } from '@/components/ui/keyboard-scroll-view';
 import { Text } from '@/components/ui/text';
 import { FONT_FAMILY } from '@/constants/fonts';
 import { textSize } from '@/constants/typography';
@@ -60,6 +61,9 @@ export function Field({
   const { tokens } = useTheme();
   const [focused, setFocused] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  // Tapping a second field leaves the keyboard where it is, so the scroll view is only
+  // told to move by the focus itself.
+  const scrollIntoView = useScrollFocusedIntoView();
   const borderColor = error ? tokens.expense : focused ? tokens.primary : tokens.line;
 
   return (
@@ -93,7 +97,10 @@ export function Field({
           autoFocus={autoFocus}
           returnKeyType={returnKeyType}
           onSubmitEditing={onSubmitEditing}
-          onFocus={() => setFocused(true)}
+          onFocus={() => {
+            setFocused(true);
+            scrollIntoView?.();
+          }}
           onBlur={() => setFocused(false)}
           accessibilityLabel={label ?? placeholder}
           style={{

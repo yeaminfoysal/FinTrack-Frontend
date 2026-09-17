@@ -1,10 +1,11 @@
 import Constants from 'expo-constants';
-import { useRouter } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 
 import { ModalShell } from '@/components/modal-shell';
 import { PageTitle } from '@/components/page-title';
+import { ReminderSettings } from '@/components/reminder-settings';
 import { SyncBadge } from '@/components/sync-badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import { Icon } from '@/components/ui/icon';
 import { ListGroup, ListRow } from '@/components/ui/list-row';
 import { Segmented } from '@/components/ui/segmented';
 import { Text } from '@/components/ui/text';
+import { fontFamilyFor } from '@/constants/fonts';
 import { textSize } from '@/constants/typography';
 import { useSyncStatus } from '@/hooks/use-sync-status';
 import { relativeTimeBn } from '@/lib/date';
@@ -30,6 +32,9 @@ const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: 'dark', label: 'ডার্ক' },
   { value: 'system', label: 'অটো' },
 ];
+
+/** The developer's site, opened from the credit line at the bottom of this screen. */
+const DEVELOPER_URL = 'https://yeamin-foysal.vercel.app';
 
 export default function SettingsScreen() {
   const { tokens, preference, setPreference } = useTheme();
@@ -124,8 +129,8 @@ export default function SettingsScreen() {
         <ProfileForm key={`${profile.name}|${profile.openingSavings}`} />
       </SettingGroup>
 
-      {/* Categories */}
-      <SettingGroup label="ক্যাটাগরি">
+      {/* Entry helpers */}
+      <SettingGroup label="এন্ট্রি">
         <ListGroup>
           <ListRow
             title="ক্যাটাগরি ও উৎস"
@@ -135,7 +140,21 @@ export default function SettingsScreen() {
             onPress={() => router.push('/categories')}
             trailing={<Icon name="chevron-forward" size={18} color={tokens.muted} />}
           />
+          <ListRow
+            divider
+            title="নিয়মিত লেনদেন"
+            subtitle="বাসা ভাড়া, বেতন, বিল — নিজে থেকেই লেখা হবে"
+            icon="repeat-outline"
+            tint={tokens.primary}
+            onPress={() => router.push('/recurring')}
+            trailing={<Icon name="chevron-forward" size={18} color={tokens.muted} />}
+          />
         </ListGroup>
+      </SettingGroup>
+
+      {/* Reminders */}
+      <SettingGroup label="রিমাইন্ডার">
+        <ReminderSettings />
       </SettingGroup>
 
       {/* Preferences */}
@@ -165,6 +184,16 @@ export default function SettingsScreen() {
       />
       <Text style={{ textAlign: 'center', fontSize: textSize.xs, color: tokens.muted, marginTop: 6 }}>
         FinTrack · সংস্করণ {localDigits(Constants.expoConfig?.version ?? '1.0.0')}
+      </Text>
+      <Text style={{ textAlign: 'center', fontSize: textSize.xs, color: tokens.muted, marginTop: 2 }}>
+        ডেভেলপার{' '}
+        <Link
+          href={DEVELOPER_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: textSize.xs, fontFamily: fontFamilyFor('700'), color: tokens.primary }}>
+          Yeamin Foysal
+        </Link>
       </Text>
     </ModalShell>
   );

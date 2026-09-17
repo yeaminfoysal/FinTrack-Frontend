@@ -12,8 +12,11 @@ import type {
   Income,
   Loan,
   LoanDirection,
+  LoanPayment,
   MonthlySummary,
   PracticalBalance,
+  Recurring,
+  RecurringFrequency,
   UserProfile,
 } from '@/lib/types';
 
@@ -33,12 +36,16 @@ export interface AddIncomeInput {
   source: string;
   date?: string;
   note?: string | null;
+  /** Fixed id, so a recurring occurrence keeps the same one on every device. */
+  id?: string;
 }
 export interface AddExpenseInput {
   amount: number;
   category: string;
   date?: string;
   description?: string | null;
+  /** Fixed id, so a recurring occurrence keeps the same one on every device. */
+  id?: string;
 }
 export interface AddCategoryInput {
   kind: CategoryKind;
@@ -53,6 +60,27 @@ export interface AddLoanInput {
   amount: number;
   date?: string;
   note?: string | null;
+  /** When the money is expected back — may be in the future. */
+  dueDate?: string | null;
+}
+
+export interface AddLoanPaymentInput {
+  loanId: string;
+  amount: number;
+  date?: string;
+  note?: string | null;
+}
+
+export interface AddRecurringInput {
+  kind: CategoryKind;
+  amount: number;
+  category: string;
+  note?: string | null;
+  frequency: RecurringFrequency;
+  /** Day of the month (1–31) when MONTHLY, weekday (0 = Sunday) when WEEKLY. */
+  anchor: number;
+  /** Nothing is generated before this day; defaults to today. */
+  startDate?: string;
 }
 
 export interface DataFields {
@@ -63,13 +91,19 @@ export interface DataFields {
   incomes: Income[];
   expenses: Expense[];
   loans: Loan[];
+  /** Repayments against loans — a loan is settled once its payments reach its amount. */
+  loanPayments: LoanPayment[];
   /** Categories the user added; the built-in ones live in src/constants/categories.ts. */
   categories: Category[];
+  /** Standing entries (rent, salary, a bill) that write themselves when they come due. */
+  recurrings: Recurring[];
   summaries: MonthlySummary[];
   practicals: Record<MonthKey, PracticalBalance>;
   profile: UserProfile;
   /** Name or opening savings edited on this device and not yet sent to the server. */
   profileDirty: boolean;
+  /** First-run setup is behind the user; an account with entries counts as done. */
+  onboardingDone: boolean;
   /** Pre-selected in the add forms: the category / source used last time. */
   lastExpenseCategory: string | null;
   lastIncomeSource: string | null;
@@ -83,6 +117,8 @@ export interface AccountActions {
   seedDemo: () => void;
   /** Point local storage at a real account; wipes data if the owner changed. */
   prepareForUser: (email: string, patch?: Partial<UserProfile>) => void;
+  /** First-run setup is finished; the app stops sending the user there. */
+  completeOnboarding: () => void;
   setMonthKey: (key: MonthKey) => void;
 }
 
@@ -105,11 +141,21 @@ export interface ExpenseActions {
 export interface LoanActions {
   addLoan: (input: AddLoanInput) => string;
   updateLoan: (id: string, patch: Partial<AddLoanInput>) => void;
-  settleLoan: (id: string, settledDate?: string) => void;
-  /** Marks a settled loan active again (undo of settle). */
+  /**
+   * Settles the rest of a loan by recording a repayment for whatever is still owed.
+   * Returns that payment's id — pass it to deleteLoanPayment to undo — or null when
+   * there was nothing left to settle.
+   */
+  settleLoan: (id: string, settledDate?: string) => string | null;
+  /** Reopens a loan settled the old way (status only, no payment rows). */
   unsettleLoan: (id: string) => void;
+  /** Soft-deletes the loan together with its repayments. */
   deleteLoan: (id: string) => void;
   restoreLoan: (id: string) => void;
+  /** A part (or all) of a loan coming back; returns the new record's id. */
+  addLoanPayment: (input: AddLoanPaymentInput) => string;
+  deleteLoanPayment: (id: string) => void;
+  restoreLoanPayment: (id: string) => void;
 }
 
 export interface CategoryActions {
@@ -119,6 +165,22 @@ export interface CategoryActions {
   /** Soft delete: entries already on it keep showing its name, it just stops being offered. */
   deleteCategory: (id: string) => void;
   restoreCategory: (id: string) => void;
+}
+
+export interface RecurringActions {
+  /** Returns the new rule's id. */
+  addRecurring: (input: AddRecurringInput) => string;
+  updateRecurring: (id: string, patch: Partial<AddRecurringInput>) => void;
+  /** Stops a rule generating without losing it. */
+  setRecurringPaused: (id: string, paused: boolean) => void;
+  deleteRecurring: (id: string) => void;
+  restoreRecurring: (id: string) => void;
+  /**
+   * Catch-up: writes an income/expense for every occurrence that has come due since each
+   * rule last ran, and returns how many were written. Idempotent — an occurrence whose
+   * entry already exists (even as a tombstone the user deleted) is skipped.
+   */
+  runRecurring: () => number;
 }
 
 export interface PracticalActions {
@@ -148,6 +210,7 @@ export type DataState = DataFields &
   ExpenseActions &
   LoanActions &
   CategoryActions &
+  RecurringActions &
   PracticalActions &
   ProfileActions &
   MonthCloseActions;

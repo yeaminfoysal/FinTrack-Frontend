@@ -116,6 +116,48 @@ CREATE TABLE IF NOT EXISTS category (
   updatedAt TEXT NOT NULL
 );
 `,
+  // 4 — when a loan is expected back, and repayments against it. Payments let a loan be
+  // settled a bit at a time; a loan is settled once they reach its amount. Rows settled
+  // before this step keep their status/settledDate and simply have no payments.
+  `
+ALTER TABLE loan ADD COLUMN dueDate TEXT;
+
+CREATE TABLE IF NOT EXISTS loan_payment (
+  id TEXT PRIMARY KEY NOT NULL,
+  loanId TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  date TEXT NOT NULL,
+  note TEXT,
+  isDeleted INTEGER NOT NULL DEFAULT 0,
+  deletedAt TEXT,
+  syncStatus TEXT NOT NULL DEFAULT 'PENDING',
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS loan_payment_loanId ON loan_payment(loanId);
+`,
+  // 5 — standing entries (rent, salary, a bill). A rule is a template: app open turns the
+  // occurrences due since lastRunDay into ordinary income/expense rows, which carry the money.
+  `
+CREATE TABLE IF NOT EXISTS recurring (
+  id TEXT PRIMARY KEY NOT NULL,
+  kind TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  category TEXT NOT NULL,
+  note TEXT,
+  frequency TEXT NOT NULL,
+  anchor INTEGER NOT NULL DEFAULT 1,
+  startDate TEXT NOT NULL,
+  lastRunDay TEXT,
+  isPaused INTEGER NOT NULL DEFAULT 0,
+  isDeleted INTEGER NOT NULL DEFAULT 0,
+  deletedAt TEXT,
+  syncStatus TEXT NOT NULL DEFAULT 'PENDING',
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL
+);
+`,
 ];
 
 /** Brings the database up to the latest schema and returns its version. */

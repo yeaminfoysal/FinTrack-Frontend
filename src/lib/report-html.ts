@@ -5,11 +5,11 @@
  */
 import { categorySet } from '@/constants/categories';
 import { lightTokens as t } from '@/constants/tokens';
-import { categoryTotals, dailyExpenses, type DashboardSnapshot } from '@/lib/calc';
+import { categoryTotals, dailyExpenses, paidOnLoan, paymentsOf, type DashboardSnapshot } from '@/lib/calc';
 import { dayMonthBn, fullDateBn, isInMonth, monthLabelBn, weekdayBn, type MonthKey } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
 import { formatTaka } from '@/lib/money';
-import type { Category, Expense, Income, Loan } from '@/lib/types';
+import type { Category, Expense, Income, Loan, LoanPayment } from '@/lib/types';
 
 export interface MonthReportInput {
   monthKey: MonthKey;
@@ -17,6 +17,8 @@ export interface MonthReportInput {
   incomes: Income[];
   expenses: Expense[];
   loans: Loan[];
+  /** Repayments against those loans, so the table can show what is still owed. */
+  loanPayments?: LoanPayment[];
   /** The categories the user added, so their entries keep their own name in the PDF. */
   categories?: Category[];
   userName: string;
@@ -97,8 +99,16 @@ export function buildMonthReportHtml(input: MonthReportInput): string {
   const loanRows = loans
     .map((l) => {
       const lent = l.direction === 'LENT';
+      const paid = paidOnLoan(l, input.loanPayments);
+      const back = lent ? 'ফেরত পেয়েছি' : 'শোধ করেছি';
+      const lastPayment = paymentsOf(input.loanPayments ?? [], l.id).at(-1);
+      const settledOn = l.settledDate ?? lastPayment?.date ?? null;
       const status =
-        l.status === 'ACTIVE' ? 'বাকি' : `${lent ? 'ফেরত পেয়েছি' : 'শোধ করেছি'}${l.settledDate ? ` · ${dayMonthBn(l.settledDate)}` : ''}`;
+        paid >= l.amount
+          ? `${back}${settledOn ? ` · ${dayMonthBn(settledOn)}` : ''}`
+          : paid > 0
+            ? `${formatTaka(paid)} ${back} · বাকি ${formatTaka(l.amount - paid)}`
+            : 'বাকি';
       return `<tr><td class="date">${dayMonthBn(l.date)}</td><td style="color:${lent ? t.lent : t.borrowed}">${lent ? 'ধার দেওয়া' : 'ধার নেওয়া'}</td><td>${esc(l.personName)}${l.note ? ` <span class="muted">— ${esc(l.note)}</span>` : ''}</td><td>${status}</td><td class="num">${formatTaka(l.amount)}</td></tr>`;
     })
     .join('');

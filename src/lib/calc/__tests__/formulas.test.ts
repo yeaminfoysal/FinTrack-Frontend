@@ -9,7 +9,11 @@ import {
   monthIncome,
   monthlySaving,
   netWorth,
+  loanOutstanding,
+  loanSettled,
   openingForMonth,
+  paidOnLoan,
+  recentDaySpends,
   outstandingLoans,
   outstandingLoansAt,
   theoreticalBalance,
@@ -19,7 +23,7 @@ import {
 } from '@/lib/calc';
 import { currentMonthKey, monthRangeOfKey } from '@/lib/date';
 import { buildSeed } from '@/lib/db/seed';
-import { at, expense, income, loan, summary, tk } from '@/test/factories';
+import { at, expense, income, loan, loanPayment, summary, tk } from '@/test/factories';
 
 describe('§B–§F formulas', () => {
   // The demo month: opening 45,000 · income 63,000 · borrowed 20,000 · expense 38,500 · lent 12,000.
@@ -79,6 +83,56 @@ describe('outstanding loans', () => {
     ];
     // Settling later doesn't rewrite August; the September loan isn't in it.
     expect(outstandingLoansAt(loans, 'LENT', augustEnd)).toBe(tk(3000));
+  });
+});
+
+describe('loan repayments', () => {
+  const lent = loan('LENT', tk(9000), at(2026, 9, 15));
+
+  it('counts what came back, and calls the loan settled once the parts add up', () => {
+    const part = loanPayment(lent.id, tk(4000), at(2026, 9, 21));
+    expect(paidOnLoan(lent, [part])).toBe(tk(4000));
+    expect(loanOutstanding(lent, [part])).toBe(tk(5000));
+    expect(loanSettled(lent, [part])).toBe(false);
+
+    const rest = loanPayment(lent.id, tk(5000), at(2026, 9, 28));
+    expect(loanOutstanding(lent, [part, rest])).toBe(0);
+    expect(loanSettled(lent, [part, rest])).toBe(true);
+  });
+
+  it('ignores deleted repayments and ones belonging to another loan', () => {
+    const payments = [
+      loanPayment(lent.id, tk(4000), at(2026, 9, 21), { isDeleted: true }),
+      loanPayment('another-loan', tk(4000), at(2026, 9, 21)),
+    ];
+    expect(paidOnLoan(lent, payments)).toBe(0);
+  });
+
+  it('never lets an overpayment push the loan past settled', () => {
+    expect(loanOutstanding(lent, [loanPayment(lent.id, tk(12000), at(2026, 9, 21))])).toBe(0);
+  });
+
+  it('takes a legacy settle as the whole amount, with or without payment rows', () => {
+    const old = loan('LENT', tk(3000), at(2026, 9, 2), { status: 'SETTLED', settledDate: at(2026, 9, 20) });
+    expect(paidOnLoan(old, [])).toBe(tk(3000));
+    expect(loanSettled(old, [])).toBe(true);
+  });
+
+  it('lowers the outstanding total by what has come back', () => {
+    const loans = [lent, loan('LENT', tk(7000), at(2026, 9, 10))];
+    const payments = [loanPayment(lent.id, tk(4000), at(2026, 9, 21))];
+    expect(outstandingLoans(loans, 'LENT')).toBe(tk(16000));
+    expect(outstandingLoans(loans, 'LENT', payments)).toBe(tk(12000));
+  });
+
+  it('as of a month end, only counts repayments made by then', () => {
+    const augustEnd = monthRangeOfKey('2026-08').end;
+    const august = loan('LENT', tk(5000), at(2026, 8, 5));
+    const payments = [
+      loanPayment(august.id, tk(2000), at(2026, 8, 20)),
+      loanPayment(august.id, tk(3000), at(2026, 9, 4)), // settles it, but after August closed
+    ];
+    expect(outstandingLoansAt([august], 'LENT', augustEnd, payments)).toBe(tk(3000));
   });
 });
 
@@ -185,6 +239,7 @@ describe('computeDashboard', () => {
       incomes: seed.incomes,
       expenses: seed.expenses,
       loans: seed.loans,
+      payments: seed.loanPayments,
       summaries: seed.summaries,
       baseOpening: seed.profile.openingSavings,
       practical: seed.practicals[0].amount,
@@ -239,5 +294,41 @@ describe('computeDashboard', () => {
     });
     // 500 + 1,000 + 400 borrowed = 1,900 in hand; minus the 400 owed.
     expect(snapshot).toMatchObject({ theoretical: tk(1900), untracked: 0, saving: tk(1000), netWorth: tk(1500) });
+  });
+});
+
+describe('recentDaySpends', () => {
+  it('returns one slot per day oldest first, with empty days at zero', () => {
+    const days = recentDaySpends([], '2026-09-17', 7);
+    expect(days.map((d) => d.day)).toEqual([
+      '2026-09-11',
+      '2026-09-12',
+      '2026-09-13',
+      '2026-09-14',
+      '2026-09-15',
+      '2026-09-16',
+      '2026-09-17',
+    ]);
+    expect(days.every((d) => d.total === 0)).toBe(true);
+  });
+
+  it('adds up a day, spans the month boundary and ignores what falls outside the window', () => {
+    const rows = [
+      expense(tk(200), at(2026, 10, 1, 9)),
+      expense(tk(50), at(2026, 10, 1, 20)),
+      expense(tk(300), at(2026, 9, 30)),
+      expense(tk(900), at(2026, 9, 20)), // older than the window
+    ];
+    const days = recentDaySpends(rows, '2026-10-01', 3);
+    expect(days).toEqual([
+      { day: '2026-09-29', total: 0 },
+      { day: '2026-09-30', total: tk(300) },
+      { day: '2026-10-01', total: tk(250) },
+    ]);
+  });
+
+  it('leaves out deleted expenses', () => {
+    const rows = [expense(tk(100), at(2026, 9, 17)), expense(tk(400), at(2026, 9, 17), { isDeleted: true })];
+    expect(recentDaySpends(rows, '2026-09-17', 1)).toEqual([{ day: '2026-09-17', total: tk(100) }]);
   });
 });

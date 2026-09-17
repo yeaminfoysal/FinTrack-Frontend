@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
 import { useRouter } from 'expo-router';
-import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
 import { IconButton } from '@/components/ui/icon-button';
+import { KeyboardScrollView } from '@/components/ui/keyboard-scroll-view';
 import { Text } from '@/components/ui/text';
 import { textSize } from '@/constants/typography';
 import { useTheme } from '@/providers/theme-provider';
@@ -36,13 +37,9 @@ export function ModalShell({ title, children }: { title: string; children: React
           </Text>
           <IconButton icon="close" label="বন্ধ করুন" onPress={close} />
         </View>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView
-            contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 4, paddingBottom: 32, gap: 16 }}
-            keyboardShouldPersistTaps="handled">
-            {children}
-          </ScrollView>
-        </KeyboardAvoidingView>
+        <KeyboardScrollView contentContainerStyle={{ paddingHorizontal: 18, paddingTop: 4, paddingBottom: 32, gap: 16 }}>
+          {children}
+        </KeyboardScrollView>
       </SafeAreaView>
     </View>
   );

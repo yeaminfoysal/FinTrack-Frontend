@@ -20,7 +20,8 @@ const BN_MONTHS = [
   'ডিসেম্বর',
 ];
 
-const BN_WEEKDAYS = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
+/** Full weekday names, Sunday first (same order as Date#getDay). */
+export const BN_WEEKDAYS = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
 
 /** Short weekday names for calendar headers, Sunday first (same order as Date#getDay). */
 export const BN_WEEKDAYS_SHORT = ['রবি', 'সোম', 'মঙ্গল', 'বুধ', 'বৃহঃ', 'শুক্র', 'শনি'];
@@ -138,6 +139,20 @@ export function dayKeyToIso(day: DayKey): string {
 /** "রবিবার" from an ISO date. */
 export function weekdayBn(iso: string): string {
   return BN_WEEKDAYS[new Date(iso).getDay()];
+}
+
+/** "রবি" from an ISO date — the short form used under chart columns. */
+export function weekdayShortBn(iso: string): string {
+  return BN_WEEKDAYS_SHORT[new Date(iso).getDay()];
+}
+
+/** Whole days from `from` to `to` — negative when `to` is the earlier day. */
+export function daysBetween(from: DayKey, to: DayKey): number {
+  const asDate = (day: DayKey) => {
+    const [y, m, d] = day.split('-').map(Number);
+    return new Date(y, m - 1, d).getTime();
+  };
+  return Math.round((asDate(to) - asDate(from)) / 86_400_000);
 }
 
 /** Number of days in the month of `key`. */

@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 
+import { LoanPaymentSheet } from '@/components/loan-payment-sheet';
 import { AmountInput } from '@/components/ui/amount-input';
 import { Button } from '@/components/ui/button';
-import { DateField } from '@/components/ui/date-field';
+import { DateField, DueDateField } from '@/components/ui/date-field';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Segmented } from '@/components/ui/segmented';
 import { Text } from '@/components/ui/text';
 import { textSize } from '@/constants/typography';
+import { loanOutstanding, paidOnLoan, paymentsOf } from '@/lib/calc';
 import { dayKeyOf, dayKeyToIso, fullDateBn, todayKey } from '@/lib/date';
 import { amountInputFromPaisa, formatTaka, toPaisa } from '@/lib/money';
 import type { Loan, LoanDirection } from '@/lib/types';
@@ -36,18 +38,26 @@ export function LoanForm({ existing, initialDirection = 'LENT', onDone }: LoanFo
   const restoreLoan = useDataStore((s) => s.restoreLoan);
   const settleLoan = useDataStore((s) => s.settleLoan);
   const unsettleLoan = useDataStore((s) => s.unsettleLoan);
+  const loanPayments = useDataStore((s) => s.loanPayments);
 
   const initialDay = existing ? dayKeyOf(existing.date) : todayKey();
   const [direction, setDirection] = useState<LoanDirection>(existing?.direction ?? initialDirection);
   const [personName, setPersonName] = useState(existing?.personName ?? '');
   const [amount, setAmount] = useState(existing ? amountInputFromPaisa(existing.amount) : '');
   const [day, setDay] = useState(initialDay);
+  const [dueDay, setDueDay] = useState<string | null>(existing?.dueDate ? dayKeyOf(existing.dueDate) : null);
   const [note, setNote] = useState(existing?.note ?? '');
   const [nameError, setNameError] = useState<string | null>(null);
   const [amountError, setAmountError] = useState<string | null>(null);
+  const [paymentsOpen, setPaymentsOpen] = useState(false);
 
   const lent = direction === 'LENT';
-  const settled = existing?.status === 'SETTLED';
+  // A legacy row carries its settle in the status; new ones are settled by their repayments.
+  const legacySettled = existing?.status === 'SETTLED';
+  const paid = existing ? paidOnLoan(existing, loanPayments) : 0;
+  const remaining = existing ? loanOutstanding(existing, loanPayments) : 0;
+  const settled = existing != null && remaining <= 0;
+  const hasPayments = existing != null && paymentsOf(loanPayments, existing.id).length > 0;
 
   const save = () => {
     const name = personName.trim();
@@ -58,7 +68,14 @@ export function LoanForm({ existing, initialDirection = 'LENT', onDone }: LoanFo
 
     // Keep the stored timestamp unless the day itself was changed.
     const date = existing && day === initialDay ? existing.date : dayKeyToIso(day);
-    const values = { direction, personName: name, amount: paisa, date, note: note.trim() || null };
+    const values = {
+      direction,
+      personName: name,
+      amount: paisa,
+      date,
+      note: note.trim() || null,
+      dueDate: dueDay ? dayKeyToIso(dueDay) : null,
+    };
 
     if (existing) {
       const previous = {
@@ -67,6 +84,7 @@ export function LoanForm({ existing, initialDirection = 'LENT', onDone }: LoanFo
         amount: existing.amount,
         date: existing.date,
         note: existing.note,
+        dueDate: existing.dueDate,
       };
       updateLoan(existing.id, values);
       onDone();
@@ -150,8 +168,19 @@ export function LoanForm({ existing, initialDirection = 'LENT', onDone }: LoanFo
         accent={lent ? tokens.lent : tokens.borrowed}
       />
       <DateField value={day} onChange={setDay} />
+      <DueDateField
+        value={dueDay}
+        onChange={setDueDay}
+        hint={lent ? 'কবে ফেরত পাওয়ার কথা — দিলে মনে করিয়ে দেওয়া যাবে।' : 'কবে শোধ করার কথা — দিলে মনে করিয়ে দেওয়া যাবে।'}
+      />
       <Field label="নোট (ঐচ্ছিক)" value={note} onChangeText={setNote} placeholder="যেমন: জরুরি দরকারে" multiline maxLength={500} />
-      {settled && existing?.settledDate ? (
+      {existing && paid > 0 ? (
+        <Text style={{ fontSize: textSize.sm, lineHeight: 19, color: tokens.muted, marginLeft: 2 }}>
+          {lent ? 'ফেরত পেয়েছেন' : 'শোধ করেছেন'} <Text style={{ fontWeight: '700', color: tokens.ink }}>{formatTaka(paid)}</Text>
+          {settled ? '' : ` · বাকি ${formatTaka(remaining)}`}
+        </Text>
+      ) : null}
+      {settled && legacySettled && existing?.settledDate ? (
         <Text style={{ fontSize: textSize.sm, color: tokens.muted, marginLeft: 2 }}>
           {existing.direction === 'LENT' ? 'ফেরত পাওয়া গেছে' : 'শোধ করা হয়েছে'} · {fullDateBn(existing.settledDate)}
         </Text>
@@ -163,10 +192,19 @@ export function LoanForm({ existing, initialDirection = 'LENT', onDone }: LoanFo
         onPress={save}
         style={{ marginTop: 4 }}
       />
-      {settled ? <Button label="আবার চলমান করুন" icon="arrow-undo-outline" variant="secondary" onPress={reopen} /> : null}
+      {existing && !legacySettled ? (
+        <Button
+          label={hasPayments ? 'পরিশোধের হিসাব' : lent ? 'ফেরত পেয়েছি' : 'শোধ করেছি'}
+          icon={hasPayments ? 'list-outline' : 'checkmark'}
+          variant="secondary"
+          onPress={() => setPaymentsOpen(true)}
+        />
+      ) : null}
+      {legacySettled ? <Button label="আবার চলমান করুন" icon="arrow-undo-outline" variant="secondary" onPress={reopen} /> : null}
       {existing ? (
         <Button label="ডিলিট করুন" icon="trash-outline" variant="outline" color={tokens.expense} onPress={() => void remove()} />
       ) : null}
+      <LoanPaymentSheet loan={paymentsOpen && existing ? existing : null} onClose={() => setPaymentsOpen(false)} />
     </>
   );
 }

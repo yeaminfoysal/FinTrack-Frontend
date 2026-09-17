@@ -6,6 +6,7 @@ import { ActivityDayList } from '@/components/activity-list';
 import { PageTitle } from '@/components/page-title';
 import { PracticalBalanceSheet } from '@/components/practical-balance-sheet';
 import { SyncBadge } from '@/components/sync-badge';
+import { TodaySpendCard } from '@/components/today-spend';
 import { AmountText } from '@/components/ui/amount-text';
 import { Avatar } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
@@ -139,6 +140,9 @@ export default function DashboardScreen() {
           <MiniStat icon="arrow-up" label="এই মাসে খরচ" value={snapshot.monthDailyExpense} />
         </View>
       </View>
+
+      {/* Today — the day you are actually living in, next to the month totals above */}
+      <TodaySpendCard onPress={() => router.push('/transactions')} />
 
       {/* Opening + saving */}
       <View style={{ flexDirection: 'row', gap: 11, marginTop: 14 }}>

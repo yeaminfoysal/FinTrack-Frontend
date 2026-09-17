@@ -4,6 +4,7 @@
  */
 import type { IconName } from '@/components/ui/icon';
 import { categorySet } from '@/constants/categories';
+import { paidOnLoan } from '@/lib/calc';
 import { rowsInMonth } from '@/lib/calc/month-index';
 import {
   dayKeyOf,
@@ -17,8 +18,8 @@ import {
   type MonthKey,
 } from '@/lib/date';
 import { toLatinDigits } from '@/lib/digits';
-import { formatAmount } from '@/lib/money';
-import type { Category, Expense, Income, Loan } from '@/lib/types';
+import { formatAmount, formatTaka } from '@/lib/money';
+import type { Category, Expense, Income, Loan, LoanPayment } from '@/lib/types';
 
 export type ActivityKind = 'income' | 'expense' | 'lent' | 'borrowed';
 
@@ -55,13 +56,15 @@ function searchText(parts: (string | null | undefined)[]): string {
 
 /**
  * Every live income, expense and loan as a display row, newest first. `categories` are the
- * ones the user added — without them their entries would fall back to অন্যান্য.
+ * ones the user added — without them their entries would fall back to অন্যান্য. `loanPayments`
+ * decide how much of a loan is still owed; without them every loan reads as untouched.
  */
 export function buildActivities(
   incomes: Income[],
   expenses: Expense[],
   loans: Loan[],
   categories: Category[] = [],
+  loanPayments: LoanPayment[] = [],
 ): Activity[] {
   const expenseCategories = categorySet('EXPENSE', categories);
   const incomeSources = categorySet('INCOME', categories);
@@ -100,9 +103,17 @@ export function buildActivities(
   for (const l of loans) {
     if (l.isDeleted) continue;
     const lent = l.direction === 'LENT';
-    const settled = l.status === 'SETTLED';
+    const paid = paidOnLoan(l, loanPayments);
+    const settled = paid >= l.amount;
     const kindLabel = lent ? 'ধার দেওয়া' : 'ধার নেওয়া';
-    const status = settled ? (lent ? 'ফেরত পাওয়া' : 'শোধ করা') : 'চলমান';
+    // Part of it back: what is left says more than "চলমান".
+    const status = settled
+      ? lent
+        ? 'ফেরত পাওয়া'
+        : 'শোধ করা'
+      : paid > 0
+        ? `বাকি ${formatTaka(l.amount - paid)}`
+        : 'চলমান';
     items.push({
       id: l.id,
       kind: lent ? 'lent' : 'borrowed',

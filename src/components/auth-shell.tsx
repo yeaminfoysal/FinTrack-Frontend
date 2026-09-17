@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
+import { KeyboardScrollView } from '@/components/ui/keyboard-scroll-view';
 import { Text } from '@/components/ui/text';
 import { textSize } from '@/constants/typography';
 import { useTheme } from '@/providers/theme-provider';
@@ -13,10 +14,15 @@ export function AuthShell({ title, subtitle, children }: { title: string; subtit
     <View style={{ flex: 1, backgroundColor: tokens.bg }}>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <SafeAreaView style={{ flex: 1 }}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24, width: '100%', maxWidth: 480, alignSelf: 'center' }}
-            keyboardShouldPersistTaps="handled">
+        <KeyboardScrollView
+          contentContainerStyle={{
+            flexGrow: 1,
+            justifyContent: 'center',
+            padding: 24,
+            width: '100%',
+            maxWidth: 480,
+            alignSelf: 'center',
+          }}>
             <View style={{ alignItems: 'center', marginBottom: 28 }}>
               <View
                 style={{
@@ -37,9 +43,8 @@ export function AuthShell({ title, subtitle, children }: { title: string; subtit
                 {subtitle}
               </Text>
             </View>
-            {children}
-          </ScrollView>
-        </KeyboardAvoidingView>
+          {children}
+        </KeyboardScrollView>
       </SafeAreaView>
     </View>
   );

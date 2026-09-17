@@ -6,8 +6,10 @@ import type {
   Income,
   Loan,
   LoanDirection,
+  LoanPayment,
   MonthlySummary,
   PracticalBalance,
+  Recurring,
 } from '@/lib/types';
 
 let lastId = 0;
@@ -62,6 +64,30 @@ export function loan(direction: LoanDirection, amount: number, date: string, fie
     note: null,
     status: 'ACTIVE',
     settledDate: null,
+    dueDate: null,
+    ...fields,
+  };
+}
+
+/** A repayment against `loanId` — part of a loan coming back. */
+export function loanPayment(loanId: string, amount: number, date: string, fields: Partial<LoanPayment> = {}): LoanPayment {
+  return { ...base(date), loanId, amount, date, note: null, ...fields };
+}
+
+/** A standing entry. Defaults to a monthly rule on the 1st that has never run. */
+export function recurring(kind: CategoryKind, amount: number, fields: Partial<Recurring> = {}): Recurring {
+  const startDate = fields.startDate ?? at(2026, 1, 1);
+  return {
+    ...base(startDate),
+    kind,
+    amount,
+    category: kind === 'EXPENSE' ? 'utilities' : 'salary',
+    note: null,
+    frequency: 'MONTHLY',
+    anchor: 1,
+    startDate,
+    lastRunDay: null,
+    isPaused: false,
     ...fields,
   };
 }

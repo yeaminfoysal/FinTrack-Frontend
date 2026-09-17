@@ -13,10 +13,11 @@ export function useActivities(): Activity[] {
   const incomes = useDataStore((s) => s.incomes);
   const expenses = useDataStore((s) => s.expenses);
   const loans = useDataStore((s) => s.loans);
+  const loanPayments = useDataStore((s) => s.loanPayments);
   const categories = useDataStore((s) => s.categories);
   return useMemo(
-    () => buildActivities(incomes, expenses, loans, categories),
-    [incomes, expenses, loans, categories],
+    () => buildActivities(incomes, expenses, loans, categories, loanPayments),
+    [incomes, expenses, loans, categories, loanPayments],
   );
 }
 
@@ -31,6 +32,7 @@ export function useDashboard(monthKeyArg?: MonthKey): {
   const incomes = useDataStore((s) => s.incomes);
   const expenses = useDataStore((s) => s.expenses);
   const loans = useDataStore((s) => s.loans);
+  const loanPayments = useDataStore((s) => s.loanPayments);
   const summaries = useDataStore((s) => s.summaries);
   const practicals = useDataStore((s) => s.practicals);
   const profile = useDataStore((s) => s.profile);
@@ -42,11 +44,12 @@ export function useDashboard(monthKeyArg?: MonthKey): {
         incomes,
         expenses,
         loans,
+        payments: loanPayments,
         summaries,
         baseOpening: profile.openingSavings,
         practical: practicals[monthKey]?.amount ?? null,
       }),
-    [monthKey, incomes, expenses, loans, summaries, practicals, profile.openingSavings],
+    [monthKey, incomes, expenses, loans, loanPayments, summaries, practicals, profile.openingSavings],
   );
 
   const activities = useActivities();

@@ -13,6 +13,8 @@ export const createExpenseSlice: DataSlice<ExpenseActions> = (set) => {
     addExpense: (input) => {
       const rec: Expense = {
         ...newBase(),
+        // A recurring occurrence brings its own id, so the same one on another device is one row.
+        ...(input.id ? { id: input.id } : {}),
         amount: input.amount,
         category: input.category,
         date: input.date ?? nowIso(),

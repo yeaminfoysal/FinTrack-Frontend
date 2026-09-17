@@ -14,10 +14,14 @@ type SetState = Parameters<DataSlice<object>>[0];
 
 export interface RecordKind<T extends BaseRecord> {
   /** Where the records live in the store. */
-  list: 'incomes' | 'expenses' | 'loans' | 'categories';
+  list: 'incomes' | 'expenses' | 'loans' | 'loanPayments' | 'categories' | 'recurrings';
   save: (db: Db, record: T) => void;
-  /** Cash the record moves; [] once deleted, and always [] for records that hold no money. */
-  cashEvents: (record: T) => CashEvent[];
+  /**
+   * Cash the record moves; [] once deleted, and always [] for records that hold no money.
+   * Gets the state too, for records whose movement depends on another (a repayment needs
+   * its loan's direction).
+   */
+  cashEvents: (record: T, s: DataState) => CashEvent[];
 }
 
 export function recordActions<T extends BaseRecord>(set: SetState, kind: RecordKind<T>) {
@@ -43,7 +47,7 @@ export function recordActions<T extends BaseRecord>(set: SetState, kind: RecordK
       changed = next;
       const copy = list.slice();
       copy[index] = next;
-      return { ...withList(copy), ...practicalPatch(s, kind.cashEvents(list[index]), kind.cashEvents(next)) };
+      return { ...withList(copy), ...practicalPatch(s, kind.cashEvents(list[index], s), kind.cashEvents(next, s)) };
     });
     const saved: T | null = changed;
     if (saved) withDb((db) => kind.save(db, saved));
@@ -57,7 +61,7 @@ export function recordActions<T extends BaseRecord>(set: SetState, kind: RecordK
       set((s) => ({
         ...withList([record, ...listOf(s)]),
         ...extra,
-        ...practicalPatch(s, [], kind.cashEvents(record)),
+        ...practicalPatch(s, [], kind.cashEvents(record, s)),
       }));
       withDb((db) => kind.save(db, record));
     },

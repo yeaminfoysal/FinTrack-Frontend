@@ -127,7 +127,8 @@ function CalendarSheet({
 }: {
   visible: boolean;
   value: DayKey;
-  maxDay: DayKey;
+  /** Latest day that can be picked; leave it out to allow future days (a loan's due date). */
+  maxDay?: DayKey;
   onClose: () => void;
   onSelect: (day: DayKey) => void;
 }) {
@@ -159,7 +160,7 @@ function CalendarSheet({
         <IconButton
           icon="chevron-forward"
           label="পরের মাস"
-          disabled={month >= maxDay.slice(0, 7)}
+          disabled={maxDay != null && month >= maxDay.slice(0, 7)}
           onPress={() => setMonth(nextMonthKey(month))}
         />
       </View>
@@ -175,9 +176,9 @@ function CalendarSheet({
           {week.map((dayNumber, i) => {
             if (dayNumber == null) return <View key={i} style={{ flex: 1, height: 44 }} />;
             const day = `${month}-${pad2(dayNumber)}`;
-            const disabled = day > maxDay;
+            const disabled = maxDay != null && day > maxDay;
             const selected = day === value;
-            const isToday = day === maxDay;
+            const isToday = day === todayKey();
             return (
               <Pressable
                 key={i}
@@ -215,5 +216,56 @@ function CalendarSheet({
       ))}
       <Button label="বাতিল" variant="secondary" onPress={onClose} style={{ marginTop: 4 }} />
     </BottomSheet>
+  );
+}
+
+/**
+ * Optional day in the future — a loan's expected return date. Unlike DateField the
+ * calendar has no upper bound and "নেই" clears it, because most loans have no fixed date.
+ */
+export function DueDateField({
+  value,
+  onChange,
+  label = 'ফেরতের তারিখ (ঐচ্ছিক)',
+  hint,
+}: {
+  value: DayKey | null;
+  onChange: (day: DayKey | null) => void;
+  label?: string;
+  hint?: string;
+}) {
+  const { tokens } = useTheme();
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const today = todayKey();
+  const inAMonth = shiftDayKey(today, 30);
+  const picked = value != null && value !== inAMonth;
+
+  return (
+    <View style={{ gap: 7 }}>
+      <Text style={{ fontSize: textSize.sm, fontWeight: '600', color: tokens.muted, marginLeft: 2 }}>{label}</Text>
+      <View accessibilityRole="radiogroup" accessibilityLabel={label} style={{ flexDirection: 'row', gap: 8 }}>
+        <DayChip label="নেই" selected={value == null} onPress={() => onChange(null)} />
+        <DayChip label="১ মাস পর" selected={value === inAMonth} onPress={() => onChange(inAMonth)} />
+        <DayChip
+          label={picked ? dayMonthBn(dayKeyToIso(value)) : 'তারিখ বাছুন'}
+          icon="calendar-outline"
+          selected={picked}
+          hint="ক্যালেন্ডার খুলবে"
+          onPress={() => setCalendarOpen(true)}
+        />
+      </View>
+      <Text style={{ fontSize: textSize.sm, lineHeight: 18, color: tokens.muted, marginLeft: 2 }}>
+        {value ? `${fullDateBn(dayKeyToIso(value))} · ${weekdayBn(dayKeyToIso(value))}` : (hint ?? 'তারিখ দিলে সময় হলে মনে করিয়ে দেওয়া যাবে।')}
+      </Text>
+      <CalendarSheet
+        visible={calendarOpen}
+        value={value ?? today}
+        onClose={() => setCalendarOpen(false)}
+        onSelect={(day) => {
+          onChange(day);
+          setCalendarOpen(false);
+        }}
+      />
+    </View>
   );
 }
