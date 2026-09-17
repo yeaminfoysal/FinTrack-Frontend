@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { AuthShell } from '@/components/auth-shell';
+import { PageTitle } from '@/components/page-title';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Notice } from '@/components/ui/notice';
@@ -139,6 +140,7 @@ export default function ForgotPasswordScreen() {
 
   return (
     <AuthShell title="পাসওয়ার্ড রিসেট" subtitle={subtitle}>
+      <PageTitle title="পাসওয়ার্ড রিসেট" />
       <View style={{ gap: 14 }}>
         {step === 'email' && (
           <>

@@ -4,6 +4,7 @@ import { View } from 'react-native';
 
 import { ActivitySectionList } from '@/components/activity-list';
 import { MonthSwitcher, useMonthsWithData } from '@/components/month-switcher';
+import { PageTitle } from '@/components/page-title';
 import { ChipSelect, type ChipOption } from '@/components/ui/chip-select';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Screen } from '@/components/ui/screen';
@@ -129,6 +130,7 @@ export default function TransactionsScreen() {
 
   return (
     <Screen scroll={false} padded={false}>
+      <PageTitle title="লেনদেন" />
       <ActivitySectionList days={days} header={header} empty={empty} />
     </Screen>
   );

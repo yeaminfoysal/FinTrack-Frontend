@@ -7,6 +7,7 @@ import { View } from 'react-native';
 
 import { CategorySheet } from '@/components/category-sheet';
 import { ModalShell } from '@/components/modal-shell';
+import { PageTitle } from '@/components/page-title';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { ListGroup, ListRow } from '@/components/ui/list-row';
@@ -78,6 +79,7 @@ export default function CategoriesScreen() {
 
   return (
     <ModalShell title="ক্যাটাগরি">
+      <PageTitle title="ক্যাটাগরি" />
       <Segmented options={KIND_OPTIONS} value={kind} onChange={setKind} accessibilityLabel="ক্যাটাগরির ধরন" />
 
       <Section label={`আপনার ${noun}`}>

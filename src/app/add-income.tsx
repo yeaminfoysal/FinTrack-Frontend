@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import { IncomeForm } from '@/components/forms/income-form';
 import { ModalShell, useCloseModal } from '@/components/modal-shell';
+import { PageTitle } from '@/components/page-title';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useDataStore } from '@/stores/data';
 
@@ -18,6 +19,7 @@ export default function IncomeScreen() {
   if (id && !existing) {
     return (
       <ModalShell title="আয় এডিট করুন">
+        <PageTitle title="আয় যোগ" />
         <EmptyState icon="alert-circle-outline" title="এই আয়টি আর নেই" message="হয়তো আগেই ডিলিট হয়ে গেছে।" />
       </ModalShell>
     );
@@ -25,6 +27,7 @@ export default function IncomeScreen() {
 
   return (
     <ModalShell title={existing ? 'আয় এডিট করুন' : 'আয় যোগ করুন'}>
+      <PageTitle title="আয় যোগ" />
       <IncomeForm existing={existing} onDone={close} />
     </ModalShell>
   );

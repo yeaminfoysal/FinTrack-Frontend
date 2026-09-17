@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { AuthShell } from '@/components/auth-shell';
+import { PageTitle } from '@/components/page-title';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Notice } from '@/components/ui/notice';
@@ -63,6 +64,7 @@ export default function RegisterScreen() {
 
   return (
     <AuthShell title="নতুন অ্যাকাউন্ট" subtitle="শুরু করতে কিছু তথ্য দিন">
+      <PageTitle title="রেজিস্টার" />
       <View style={{ gap: 14 }}>
         <Field
           label="নাম"

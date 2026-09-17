@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { APP_MAX_WIDTH } from '@/components/ui/app-frame';
 import { IconButton } from '@/components/ui/icon-button';
 import { Text } from '@/components/ui/text';
 import { radii, withAlpha } from '@/constants/tokens';
@@ -44,7 +45,8 @@ export function BottomSheet({ visible, onClose, title, children, scroll, gap = 1
           style={{
             maxHeight: '88%',
             width: '100%',
-            maxWidth: 520,
+            // The sheet is a viewport-wide overlay on web; keep it inside the app column.
+            maxWidth: Platform.OS === 'web' ? APP_MAX_WIDTH : 520,
             alignSelf: 'center',
             backgroundColor: tokens.bg,
             borderTopLeftRadius: radii.xl,

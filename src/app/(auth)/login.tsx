@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { AuthShell } from '@/components/auth-shell';
+import { PageTitle } from '@/components/page-title';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Notice } from '@/components/ui/notice';
@@ -55,6 +56,7 @@ export default function LoginScreen() {
 
   return (
     <AuthShell title="FinTrack" subtitle="আপনার অ্যাকাউন্টে লগইন করুন">
+      <PageTitle title="লগইন" />
       <View style={{ gap: 14 }}>
         <Field
           label="ইমেইল"

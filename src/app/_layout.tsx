@@ -12,6 +12,8 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { PageTitle } from '@/components/page-title';
+import { AppFrame } from '@/components/ui/app-frame';
 import { DialogHost } from '@/components/ui/dialog-host';
 import { ToastHost } from '@/components/ui/toast-host';
 import { ThemeProvider } from '@/providers/theme-provider';
@@ -82,19 +84,26 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AuthGate>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="settings" />
-            <Stack.Screen name="categories" />
-            <Stack.Screen name="add" options={{ presentation: 'modal' }} />
-            <Stack.Screen name="add-income" options={{ presentation: 'modal' }} />
-            <Stack.Screen name="add-expense" options={{ presentation: 'modal' }} />
-            <Stack.Screen name="add-loan" options={{ presentation: 'modal' }} />
-          </Stack>
-        </AuthGate>
-        <ToastHost />
+        {/* Web only: keeps the phone layout in a centred column. */}
+        <AppFrame>
+          <AuthGate>
+            {/* Fallback document title; each screen overrides it with its own <PageTitle />. */}
+            <PageTitle />
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="settings" />
+              <Stack.Screen name="categories" />
+              <Stack.Screen name="add" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="add-income" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="add-expense" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="add-loan" options={{ presentation: 'modal' }} />
+            </Stack>
+          </AuthGate>
+          {/* Inside the frame so the snackbar lines up with the column. */}
+          <ToastHost />
+        </AppFrame>
+        {/* Modal-based, so it covers the viewport on its own. */}
         <DialogHost />
       </ThemeProvider>
     </SafeAreaProvider>

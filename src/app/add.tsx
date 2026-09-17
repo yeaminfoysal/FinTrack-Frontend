@@ -5,6 +5,7 @@ import { ExpenseForm } from '@/components/forms/expense-form';
 import { IncomeForm } from '@/components/forms/income-form';
 import { LoanForm } from '@/components/forms/loan-form';
 import { ModalShell, useCloseModal } from '@/components/modal-shell';
+import { PageTitle } from '@/components/page-title';
 import { Segmented } from '@/components/ui/segmented';
 
 type EntryType = 'expense' | 'income' | 'loan';
@@ -25,6 +26,7 @@ export default function AddEntryScreen() {
 
   return (
     <ModalShell title="নতুন এন্ট্রি">
+      <PageTitle title="নতুন এন্ট্রি" />
       <Segmented options={TYPE_OPTIONS} value={type} onChange={setType} accessibilityLabel="এন্ট্রির ধরন" />
       {type === 'expense' ? <ExpenseForm key="expense" onDone={close} /> : null}
       {type === 'income' ? <IncomeForm key="income" onDone={close} /> : null}

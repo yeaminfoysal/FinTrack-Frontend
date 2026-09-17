@@ -3,6 +3,7 @@ import { View } from 'react-native';
 
 import { CategoryBars, SavingBars, type MonthSaving } from '@/components/charts';
 import { MonthSwitcher, useMonthsWithData } from '@/components/month-switcher';
+import { PageTitle } from '@/components/page-title';
 import { AmountText } from '@/components/ui/amount-text';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -106,6 +107,7 @@ export default function ReportScreen() {
 
   return (
     <Screen>
+      <PageTitle title="রিপোর্ট" />
       <View
         style={{
           flexDirection: 'row',

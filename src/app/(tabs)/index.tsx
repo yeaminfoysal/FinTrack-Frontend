@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, useWindowDimensions, View } from 'react-native';
 
 import { ActivityDayList } from '@/components/activity-list';
+import { PageTitle } from '@/components/page-title';
 import { PracticalBalanceSheet } from '@/components/practical-balance-sheet';
 import { SyncBadge } from '@/components/sync-badge';
 import { AmountText } from '@/components/ui/amount-text';
@@ -50,6 +51,7 @@ export default function DashboardScreen() {
 
   return (
     <Screen refreshing={refreshing} onRefresh={sync.isDemo ? undefined : () => void refresh()}>
+      <PageTitle title="হোম" />
       {/* Header */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, marginBottom: 18 }}>
         <Pressable

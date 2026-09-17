@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 
 import { ModalShell } from '@/components/modal-shell';
+import { PageTitle } from '@/components/page-title';
 import { SyncBadge } from '@/components/sync-badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -75,6 +76,7 @@ export default function SettingsScreen() {
 
   return (
     <ModalShell title="সেটিংস">
+      <PageTitle title="সেটিংস" />
       {/* Profile */}
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         <Avatar name={profile.name} size={52} />

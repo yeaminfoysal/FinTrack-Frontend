@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
 
+import { PageTitle } from '@/components/page-title';
 import { AmountText } from '@/components/ui/amount-text';
 import { initialOf } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -135,6 +136,7 @@ export default function LoansScreen() {
 
   return (
     <Screen scroll={false} padded={false}>
+      <PageTitle title="পাওনা-দেনা" />
       <FlatList
         data={list}
         keyExtractor={(loan) => loan.id}

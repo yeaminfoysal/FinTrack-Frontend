@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import { LoanForm } from '@/components/forms/loan-form';
 import { ModalShell, useCloseModal } from '@/components/modal-shell';
+import { PageTitle } from '@/components/page-title';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useDataStore } from '@/stores/data';
 
@@ -18,6 +19,7 @@ export default function LoanScreen() {
   if (id && !existing) {
     return (
       <ModalShell title="লোন এডিট করুন">
+        <PageTitle title="লোন যোগ" />
         <EmptyState icon="alert-circle-outline" title="এই লোনটি আর নেই" message="হয়তো আগেই ডিলিট হয়ে গেছে।" />
       </ModalShell>
     );
@@ -25,6 +27,7 @@ export default function LoanScreen() {
 
   return (
     <ModalShell title={existing ? 'লোন এডিট করুন' : 'নতুন লোন'}>
+      <PageTitle title="লোন যোগ" />
       <LoanForm existing={existing} initialDirection={direction === 'BORROWED' ? 'BORROWED' : 'LENT'} onDone={close} />
     </ModalShell>
   );
