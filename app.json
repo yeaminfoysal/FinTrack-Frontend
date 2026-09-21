@@ -8,12 +8,11 @@
     "scheme": "fintrackfrontend",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.yeaminfoysal.fintrack"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0E7A52",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -30,10 +29,13 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "android": {
+          "backgroundColor": "#0E7A52",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "dark": {
             "image": "./assets/images/splash-icon.png",
-            "imageWidth": 76
+            "backgroundColor": "#0E7A52"
           }
         }
       ],

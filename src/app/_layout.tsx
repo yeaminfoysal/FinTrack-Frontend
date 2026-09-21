@@ -8,12 +8,13 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { PageTitle } from '@/components/page-title';
 import { AppFrame } from '@/components/ui/app-frame';
+import { BrandSplash } from '@/components/ui/brand-splash';
 import { DialogHost } from '@/components/ui/dialog-host';
 import { ToastHost } from '@/components/ui/toast-host';
 import { useReminders } from '@/hooks/use-reminders';
@@ -95,10 +96,9 @@ export default function RootLayout() {
   });
   // A font that fails to load falls back to the system face instead of blocking the app.
   const ready = fontsLoaded || fontError != null;
-
-  useEffect(() => {
-    if (ready) SplashScreen.hideAsync().catch(() => {});
-  }, [ready]);
+  // BrandSplash takes over from the native splash and hides it itself, once it has
+  // painted the same picture — so there is never a bare frame between the two.
+  const [branding, setBranding] = useState(true);
 
   if (!ready) return null;
 
@@ -128,6 +128,8 @@ export default function RootLayout() {
         </AppFrame>
         {/* Modal-based, so it covers the viewport on its own. */}
         <DialogHost />
+        {/* Outside AppFrame so the brand fills the whole viewport on web, not just the column. */}
+        {branding ? <BrandSplash onHidden={() => setBranding(false)} /> : null}
       </ThemeProvider>
     </SafeAreaProvider>
   );
