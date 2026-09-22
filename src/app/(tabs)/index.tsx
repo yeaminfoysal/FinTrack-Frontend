@@ -21,12 +21,15 @@ import { textSize } from '@/constants/typography';
 import { useDashboard } from '@/hooks/use-dashboard';
 import { useSyncStatus } from '@/hooks/use-sync-status';
 import { groupByDay } from '@/lib/activity';
-import { monthLabelBn, monthName, parseMonthKey } from '@/lib/date';
+import { monthLabel, monthName, parseMonthKey } from '@/lib/date';
+import { useStrings } from '@/lib/i18n';
 import { formatTaka } from '@/lib/money';
 import { useTheme } from '@/providers/theme-provider';
 
 export default function DashboardScreen() {
   const { tokens } = useTheme();
+  const strings = useStrings();
+  const t = strings.home;
   const router = useRouter();
   const { snapshot, recent, profile, monthKey } = useDashboard();
   const sync = useSyncStatus();
@@ -46,24 +49,24 @@ export default function DashboardScreen() {
   const hasPractical = snapshot.practical != null;
   const untrackedIsIncome = snapshot.untracked < 0;
   const untrackedColor = untrackedIsIncome ? tokens.income : tokens.borrowed;
-  const untrackedLabel = untrackedIsIncome ? 'আনট্র্যাকড আয়' : 'আনট্র্যাকড খরচ';
+  const untrackedLabel = untrackedIsIncome ? strings.balance.untrackedIncome : strings.balance.untrackedExpense;
   // On narrow phones (~360dp) the full "সেপ্টেম্বর 2026" pill squeezes the greeting onto two lines.
   const compactHeader = useWindowDimensions().width < 400;
 
   return (
     <Screen refreshing={refreshing} onRefresh={sync.isDemo ? undefined : () => void refresh()}>
-      <PageTitle title="হোম" />
+      <PageTitle title={strings.tabs.home} />
       {/* Header */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, marginBottom: 18 }}>
         <Pressable
           onPress={() => router.push('/settings')}
           accessibilityRole="button"
-          accessibilityLabel={`${profile.name} — প্রোফাইল ও সেটিংস`}
+          accessibilityLabel={t.profileA11y(profile.name)}
           style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <Avatar name={profile.name} />
           <View style={{ flex: 1 }}>
             <Text numberOfLines={1} style={{ fontSize: textSize.sm, color: tokens.muted }}>
-              আসসালামু আলাইকুম
+              {t.greeting}
             </Text>
             <Text numberOfLines={1} style={{ fontSize: textSize.lg, fontWeight: '700', color: tokens.ink }}>
               {profile.name}
@@ -73,7 +76,7 @@ export default function DashboardScreen() {
         <Pressable
           onPress={() => router.push('/report')}
           accessibilityRole="button"
-          accessibilityLabel={`${monthLabelBn(monthKey)} — মাসিক রিপোর্ট দেখুন`}
+          accessibilityLabel={t.reportA11y(monthLabel(monthKey))}
           style={({ pressed }) => ({
             minHeight: 40,
             flexDirection: 'row',
@@ -88,10 +91,10 @@ export default function DashboardScreen() {
           })}>
           {compactHeader ? null : <Icon name="calendar-outline" size={15} color={tokens.muted} />}
           <Text style={{ fontSize: textSize.sm, fontWeight: '600', color: tokens.ink }}>
-            {compactHeader ? monthName(parseMonthKey(monthKey).month) : monthLabelBn(monthKey)}
+            {compactHeader ? monthName(parseMonthKey(monthKey).month) : monthLabel(monthKey)}
           </Text>
         </Pressable>
-        <IconButton icon="settings-outline" label="সেটিংস" onPress={() => router.push('/settings')} />
+        <IconButton icon="settings-outline" label={strings.settings.title} onPress={() => router.push('/settings')} />
       </View>
 
       {/* Balance card */}
@@ -119,7 +122,7 @@ export default function DashboardScreen() {
           }}
         />
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <Text style={{ fontSize: textSize.md, fontWeight: '500', color: tokens.onFill }}>বর্তমান ব্যালেন্স</Text>
+          <Text style={{ fontSize: textSize.md, fontWeight: '500', color: tokens.onFill }}>{strings.balance.current}</Text>
           <SyncBadge onFill />
         </View>
         <AmountText
@@ -131,13 +134,11 @@ export default function DashboardScreen() {
           style={{ marginTop: 6 }}
         />
         <Text style={{ fontSize: textSize.sm, color: tokens.onFill }}>
-          {hasPractical
-            ? `বাস্তবে হাতে আছে ${formatTaka(snapshot.practical ?? 0)}`
-            : 'হিসাব অনুযায়ী এখন হাতে যত থাকার কথা'}
+          {hasPractical ? t.practicalNote(formatTaka(snapshot.practical ?? 0)) : t.theoreticalNote}
         </Text>
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
-          <MiniStat icon="arrow-down" label="এই মাসে আয়" value={snapshot.monthIncome} />
-          <MiniStat icon="arrow-up" label="এই মাসে খরচ" value={snapshot.monthDailyExpense} />
+          <MiniStat icon="arrow-down" label={t.monthIncome} value={snapshot.monthIncome} />
+          <MiniStat icon="arrow-up" label={t.monthExpense} value={snapshot.monthDailyExpense} />
         </View>
       </View>
 
@@ -147,11 +148,11 @@ export default function DashboardScreen() {
       {/* Opening + saving */}
       <View style={{ flexDirection: 'row', gap: 11, marginTop: 14 }}>
         <Card style={{ flex: 1 }}>
-          <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>মাসের শুরুতে ছিল</Text>
+          <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>{t.openingCard}</Text>
           <AmountText paisa={snapshot.opening} size="xl" color={tokens.ink} numberOfLines={1} style={{ marginTop: 4 }} />
         </Card>
         <Card style={{ flex: 1 }}>
-          <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>এই মাসের সঞ্চয়</Text>
+          <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>{t.savingCard}</Text>
           <AmountText
             paisa={snapshot.saving}
             signed
@@ -167,8 +168,8 @@ export default function DashboardScreen() {
       <Pressable
         onPress={() => router.push('/loans')}
         accessibilityRole="button"
-        accessibilityLabel={`পাওনা ${formatTaka(snapshot.outstandingLent)}, দেনা ${formatTaka(snapshot.outstandingBorrowed)}`}
-        accessibilityHint="পাওনা-দেনা পেজ খুলবে"
+        accessibilityLabel={t.loansA11y(formatTaka(snapshot.outstandingLent), formatTaka(snapshot.outstandingBorrowed))}
+        accessibilityHint={t.loansHint}
         style={({ pressed }) => ({
           marginTop: 11,
           minHeight: 52,
@@ -183,9 +184,9 @@ export default function DashboardScreen() {
           borderWidth: 1,
           opacity: pressed ? 0.85 : 1,
         })}>
-        <LoanFigure label="পাওনা" amount={snapshot.outstandingLent} color={tokens.lent} />
+        <LoanFigure label={strings.balance.receivable} amount={snapshot.outstandingLent} color={tokens.lent} />
         <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: tokens.line }} />
-        <LoanFigure label="দেনা" amount={snapshot.outstandingBorrowed} color={tokens.borrowed} />
+        <LoanFigure label={strings.balance.payable} amount={snapshot.outstandingBorrowed} color={tokens.borrowed} />
         <Icon name="chevron-forward" size={16} color={tokens.muted} />
       </Pressable>
 
@@ -194,9 +195,9 @@ export default function DashboardScreen() {
         onPress={() => setBalanceOpen(true)}
         accessibilityRole="button"
         accessibilityLabel={
-          hasPractical ? `${untrackedLabel} ${formatTaka(Math.abs(snapshot.untracked))}` : 'বাস্তবে হাতে কত আছে লিখুন'
+          hasPractical ? t.untrackedA11y(untrackedLabel, formatTaka(Math.abs(snapshot.untracked))) : t.enterBalanceA11y
         }
-        accessibilityHint="হিসাব মেলানোর শিট খুলবে"
+        accessibilityHint={t.reconcileHint}
         style={({ pressed }) => ({
           marginTop: 11,
           borderRadius: radii.lg,
@@ -227,14 +228,14 @@ export default function DashboardScreen() {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: textSize.md, fontWeight: '600', color: tokens.ink }}>
-            {hasPractical ? untrackedLabel : 'হাতে কত আছে লিখুন'}
+            {hasPractical ? untrackedLabel : t.enterBalance}
           </Text>
           <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>
             {hasPractical
               ? untrackedIsIncome
-                ? 'লেখা হয়নি এমন টাকা হাতে এসেছে'
-                : 'হিসাবের বাইরে খরচ হয়ে গেছে'
-              : 'তাহলে হিসাবের বাইরের খরচ ধরা পড়বে'}
+                ? t.untrackedIncomeNote
+                : t.untrackedExpenseNote
+              : t.enterBalanceNote}
           </Text>
         </View>
         {hasPractical ? (
@@ -246,16 +247,16 @@ export default function DashboardScreen() {
 
       {/* Recent, grouped by day */}
       <SectionHeader
-        title="সাম্প্রতিক লেনদেন"
-        actionLabel={recent.length > 0 ? 'সব দেখুন' : undefined}
+        title={t.recent}
+        actionLabel={recent.length > 0 ? t.seeAll : undefined}
         onAction={() => router.push('/transactions')}
       />
       {recent.length === 0 ? (
         <EmptyState
           icon="receipt-outline"
-          title="এখনো কোনো লেনদেন নেই"
-          message="প্রথম খরচ বা আয় যোগ করে হিসাব শুরু করুন।"
-          actionLabel="প্রথম এন্ট্রি যোগ করুন"
+          title={t.emptyTitle}
+          message={t.emptyMessage}
+          actionLabel={t.emptyAction}
           onAction={() => router.push('/add')}
         />
       ) : (

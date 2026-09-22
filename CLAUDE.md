@@ -26,6 +26,7 @@
 | Framework | Expo SDK **57**, React Native 0.86, React 19 (React Compiler চালু) |
 | Routing | **Expo Router** (file-based, `src/app/`, typed routes) |
 | Language | TypeScript (strict) |
+| ভাষা (UI) | নিজের ছোট i18n লেয়ার (`src/lib/i18n/`) — বাংলা ডিফল্ট, ইংরেজি ঐচ্ছিক। কোনো লাইব্রেরি নেই |
 | Styling | Inline `style` + theme tokens (`src/constants/tokens.ts`, `typography.ts`) — NativeWind/Tailwind নেই |
 | Font | **Hind Siliguri** (`@expo-google-fonts/hind-siliguri`) — `Text` wrapper `fontWeight` দেখে face বাছে |
 | State | **Zustand** (`src/stores/`; data store-এর slice গুলো `src/features/`) |
@@ -86,6 +87,7 @@ src/
     api/                  # axios instance + endpoints + refresh interceptor
     db/                   # SQLite: migrations, repositories, demo seed
     calc/                 # ⭐ pure calculation functions (§A–§F) + month index + recurring — heavily unit-tested
+    i18n/                 # ⭐ বাংলা ও ইংরেজি catalogue + ভাষার state (§ভাষা)
     notifications.ts      # লোকাল রিমাইন্ডার schedule (pure plan* ফাংশন unit-tested)
     loan-due.ts           # লোনের ফেরতের তারিখ কত দূরে / পেরিয়ে গেছে কিনা
     activity.ts           # লেনদেন timeline: row, day grouping, search/filter
@@ -261,7 +263,7 @@ Default ৮টি expense category ও ৫টি income source `src/constants/ca
 - **monthly_summary**: `id, year, month, openingBalance, totalIncome, totalDailyExpense, outstandingLent, outstandingBorrowed, untrackedExpense, monthlySaving, closingBalance, practicalBalance, isDeleted, deletedAt, syncStatus, createdAt, updatedAt` (unique: `year+month`)
 - **practical_balance**: `monthKey, cash, bank, mfs, amount, countedAt, updatedAt, syncStatus` — প্রতি মাসে একটি। Server-এ `PracticalBalance` (userId + monthKey) হিসেবে sync হয়; month-close-এ `amount` `monthly_summary.practicalBalance`-এ যায়।
   - **Auto-adjust** (`src/lib/calc/practical.ts`): entry add/edit/delete/settle হলে practical শুধু তখনই বদলায় যখন টাকার movement `countedAt`-এর পরে হয়েছে — আগের দিনের movement গোনা টাকার ভেতরেই আছে; একই দিনে entry কখন লেখা হয়েছে সেটা দেখা হয়। তাই আগের তারিখের ভুলে-যাওয়া খরচ লিখলে untracked কমে। Loan settle-এর টাকা settle-এর মাসে ফেরে।
-- **meta/kv** (sync হয় না — ডিভাইসের নিজের): `lastSyncTime`, `lastSyncedAt`, `profile`, `ownerEmail`, `onboardingDone`, `reminders` (রিমাইন্ডার সেটিংস JSON), শেষ ব্যবহৃত category/source।
+- **meta/kv** (sync হয় না — ডিভাইসের নিজের): `lastSyncTime`, `lastSyncedAt`, `profile`, `ownerEmail`, `onboardingDone`, `reminders` (রিমাইন্ডার সেটিংস JSON), `themeMode`, `language`, শেষ ব্যবহৃত category/source।
 
 Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `name`, `email`।
 
@@ -320,6 +322,23 @@ Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `na
 
 ---
 
+## 🌐 ভাষা (i18n) — বাংলা ডিফল্ট, ইংরেজি ঐচ্ছিক
+
+সব লেখা `src/lib/i18n/`-এর দুটো catalogue-এ: `bn.ts` (উৎস, ডিফল্ট) আর `en.ts`। `Strings = typeof bn`, আর `en` সেই type-এ — তাই **বাংলায় key যোগ করে ইংরেজিতে ভুলে গেলে সেটা compile error**, রানটাইম বাগ নয়।
+
+- **ভাষা ডিভাইসের, অ্যাকাউন্টের নয়** — theme ও reminder-এর মতো local `meta` টেবিলে (`language`), কখনো sync হয় না। ফোনটা কোন ভাষায় পড়া হবে সেটা ওই ফোনের ব্যাপার।
+- **Component-এ** `const t = useStrings()` → `t.home.greeting`। এটি `useSyncExternalStore`-এ বসা, তাই ভাষা বদলালেই re-render — অ্যাপ রিস্টার্ট লাগে না।
+- **Pure ফাংশনে** `strings()` (মডিউল-স্তরের পাঠ) বা explicit `lang` প্যারামিটার। `buildActivities`, `categorySet`, `dayLabel` শেষ আর্গুমেন্ট হিসেবে `lang` নেয় (default `getLanguage()`) — এতে hook-এর dependency আসল হয় আর প্রতি ভাষায় unit test করা যায়।
+- ⚠️ **ভাষা-নির্ভর আউটপুট memo করলে dependency-তে `lang` রাখো** (`useCategorySet`, `useActivities`) — নইলে সুইচের পর পুরোনো ভাষার লেখা ঝুলে থাকবে।
+- ⚠️ **Module scope-এ catalogue পড়বে না** (`const OPTIONS = [{ label: t.x }]`) — মডিউল একবারই চলে, ভাষা পরে বদলায়। Component-এর ভেতরে বানাও।
+- **বাক্যের মাঝে styling** থাকলে catalogue-ও একইভাবে ভাগ করো (prefix / জোর দেওয়া অংশ / suffix) — শব্দক্রম ভাষাভেদে আলাদা (`todaySpend.trend*`, `loansScreen.borrowed*`)।
+- **অনুবাদ হয় না:** ব্যবহারকারীর নিজের লেখা — নোট, বিবরণ, ব্যক্তির নাম, নিজের বানানো category। **অনুবাদ হয়:** built-in category (`src/constants/categories.ts`-এ `bn`/`en` জোড়া, key অপরিবর্তিত), PDF রিপোর্ট, লোকাল নোটিফিকেশন, ডেমো seed।
+- **Search দুই ভাষাতেই** — `CategoryOption.searchTerms`-এ দুটো নামই থাকে, তাই UI ইংরেজি হলেও "খাবার" লিখে খুঁজে পাওয়া যায়।
+- **সংখ্যা** `localDigits` দিয়েই যায় (`DIGIT_STYLE = 'latin'`) — দুই ভাষাতেই একই, ৳ও বদলায় না।
+- **Web:** `+html.tsx`-এর `<html lang>` স্ট্যাটিক প্রি-রেন্ডারের ডিফল্ট; ক্লায়েন্টে `src/lib/i18n` সেটা ঠিক করে দেয়, আর `PageTitle` document-এর নামও নিজে বসায় (প্রি-রেন্ডার করা `<title>` cold load-এ রয়ে যেত)।
+
+---
+
 ## 🖼️ UI / Theme
 
 - **Inline `style`** + `useTheme()`-এর `tokens` (`src/constants/tokens.ts`) — light/dark runtime-এ বদলায়। NativeWind/`className` নেই।
@@ -352,7 +371,7 @@ Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `na
 - **Onboarding:** প্রথম রানে ৩ ধাপ (নিচের §Onboarding)।
 - **Recurring:** নিয়মিত আয়/খরচ (নিচের §Recurring)।
 - **Reminders:** দৈনিক “আজকের খরচ লিখেছেন?” ও লোনের ফেরতের তারিখ (নিচের §Reminders)।
-- **Settings:** opening savings, currency, timezone, theme, sync status, রিমাইন্ডার, logout।
+- **Settings:** opening savings, currency, timezone, **ভাষা (বাংলা/English)**, theme, sync status, রিমাইন্ডার, logout।
 
 ---
 
@@ -365,7 +384,7 @@ Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `na
 - **Idempotent — id দিয়ে।** প্রতিটা occurrence-এর id `uuidFrom('recurring:<ruleId>:<day>')` — deterministic, তাই দুই ডিভাইস একই occurrence লিখলে sync-এ **একটাই row** হয়। যে entry আগে থেকেই আছে (ব্যবহারকারীর মুছে দেওয়া tombstone সহ) সেটা আর লেখা হয় না। ⚠️ এর জন্যই `addIncome/addExpense`-এ ঐচ্ছিক `id` আছে — অন্য কোথাও ব্যবহার কোরো না।
 - MONTHLY-তে `anchor` = মাসের তারিখ (৩১ দিলে ছোট মাসে শেষ দিনে), WEEKLY-তে weekday (০ = রবিবার), DAILY-তে অব্যবহৃত।
 - Pause (`isPaused`) rule-টা রেখে দেয়, শুধু generate বন্ধ করে। Rule delete করলে আগের entry গুলো থেকে যায়।
-- Pure অংশ `src/lib/calc/recurring.ts` (`dueOccurrences`, `occurrenceId`, `frequencyLabelBn`) — unit-tested।
+- Pure অংশ `src/lib/calc/recurring.ts` (`dueOccurrences`, `occurrenceId`, `frequencyLabel`) — unit-tested।
 
 ---
 
@@ -402,4 +421,5 @@ Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `na
 - PR/commit-এর আগে: `npx tsc --noEmit` clean + `npx expo lint` + `npm test`।
 - কোনো আর্থিক হিসাব float-এ কোরো না; কোনো hard delete কোরো না; কোনো token plain storage-এ রেখো না।
 - Store-এর record array কখনো mutate কোরো না, সবসময় নতুন array — `src/lib/calc/month-index.ts` array ধরেই মাসের index cache করে; mutate করলে পুরোনো হিসাব দেখাবে।
+- **কোনো ব্যবহারকারী-দৃশ্যমান স্ট্রিং সরাসরি কোডে লিখবে না** — দুটো catalogue-এ যোগ করো (§ভাষা)।
 - নতুন native module → `npx expo install`; Expo Go-তে না চললে dev build দরকার (README/AGENTS দেখো)।

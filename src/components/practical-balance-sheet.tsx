@@ -11,7 +11,8 @@ import { Text } from '@/components/ui/text';
 import { textSize } from '@/constants/typography';
 import { useDashboard } from '@/hooks/use-dashboard';
 import { untrackedExpense } from '@/lib/calc';
-import { relativeTimeBn } from '@/lib/date';
+import { relativeTime } from '@/lib/date';
+import { useStrings } from '@/lib/i18n';
 import { amountInputFromPaisa, formatTaka, sanitizeAmountInput, toPaisa } from '@/lib/money';
 import { useTheme } from '@/providers/theme-provider';
 import { useDataStore } from '@/stores/data';
@@ -19,8 +20,9 @@ import { showToast } from '@/stores/ui';
 
 /** "হিসাব মেলানো": the balance the records add up to next to the cash, bank and mobile money actually counted. */
 export function PracticalBalanceSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const title = useStrings().practical.title;
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="হিসাব মেলানো" scroll gap={14}>
+    <BottomSheet visible={visible} onClose={onClose} title={title} scroll gap={14}>
       {/* Remounts on every open, so an edit left half-done last time starts fresh. */}
       <SheetBody key={String(visible)} onClose={onClose} />
     </BottomSheet>
@@ -29,6 +31,8 @@ export function PracticalBalanceSheet({ visible, onClose }: { visible: boolean; 
 
 function SheetBody({ onClose }: { onClose: () => void }) {
   const { tokens } = useTheme();
+  const s = useStrings();
+  const t = s.practical;
   const monthKey = useDataStore((s) => s.monthKey);
   const current = useDataStore((s) => s.practicals[s.monthKey]);
   const setPractical = useDataStore((s) => s.setPractical);
@@ -47,7 +51,7 @@ function SheetBody({ onClose }: { onClose: () => void }) {
 
   const save = () => {
     setPractical(monthKey, { cash: toPaisa(cash || '0'), bank: toPaisa(bank || '0'), mfs: toPaisa(mfs || '0') });
-    showToast({ message: 'ব্যালেন্স আপডেট হয়েছে' });
+    showToast({ message: t.saved });
     onClose();
   };
 
@@ -62,16 +66,16 @@ function SheetBody({ onClose }: { onClose: () => void }) {
   return (
     <>
       <Text style={{ fontSize: textSize.sm, lineHeight: 19, color: tokens.muted, marginTop: -6 }}>
-        হিসাব অনুযায়ী যত থাকার কথা, আর বাস্তবে হাতে, ব্যাংকে ও মোবাইল ব্যাংকিংয়ে যত আছে — এই দুইয়ের পার্থক্যই হিসাবের বাইরের খরচ।
+        {t.intro}
       </Text>
 
       <Card soft padding={16}>
-        <ReconRow label="হিসাব অনুযায়ী থাকার কথা" value={formatTaka(snapshot.theoretical)} />
-        <ReconRow label="− বাস্তবে আছে" value={practical == null ? '—' : formatTaka(practical)} />
+        <ReconRow label={t.theoretical} value={formatTaka(snapshot.theoretical)} />
+        <ReconRow label={t.minusActual} value={practical == null ? '—' : formatTaka(practical)} />
         <View style={{ height: 1, backgroundColor: tokens.line, marginVertical: 7 }} />
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <Text style={{ fontSize: textSize.md, fontWeight: '700', color: tokens.ink }}>
-            = {untrackedIsIncome ? 'আনট্র্যাকড আয়' : 'আনট্র্যাকড খরচ'}
+            = {untrackedIsIncome ? s.balance.untrackedIncome : s.balance.untrackedExpense}
           </Text>
           <AmountText
             paisa={Math.abs(untracked)}
@@ -82,17 +86,17 @@ function SheetBody({ onClose }: { onClose: () => void }) {
         </View>
         <Text style={{ fontSize: textSize.sm, color: tokens.muted, marginTop: 6, lineHeight: 19 }}>
           {practical == null
-            ? 'বাস্তবে কত আছে দিলে লেখা হয়নি এমন খরচ এখানে ধরা পড়বে।'
+            ? t.hintNone
             : untrackedIsIncome
-              ? 'লেখা হয়নি এমন টাকা হাতে এসেছে।'
-              : 'যে টাকা খরচ হয়েছে কিন্তু লেখা হয়নি।'}
+              ? t.hintIncome
+              : t.hintExpense}
         </Text>
       </Card>
 
       {editing || !current ? (
         <>
           <Field
-            label="নগদ"
+            label={t.cash}
             value={cash}
             onChangeText={(v) => setCash(sanitizeAmountInput(v))}
             keyboardType="decimal-pad"
@@ -100,7 +104,7 @@ function SheetBody({ onClose }: { onClose: () => void }) {
             placeholder="0"
           />
           <Field
-            label="ব্যাংক অ্যাকাউন্ট"
+            label={t.bank}
             value={bank}
             onChangeText={(v) => setBank(sanitizeAmountInput(v))}
             keyboardType="decimal-pad"
@@ -108,8 +112,8 @@ function SheetBody({ onClose }: { onClose: () => void }) {
             placeholder="0"
           />
           <Field
-            label="মোবাইল ব্যাংকিং"
-            hint="বিকাশ, নগদ, রকেট মিলিয়ে"
+            label={t.mfs}
+            hint={t.mfsHint}
             value={mfs}
             onChangeText={(v) => setMfs(sanitizeAmountInput(v))}
             keyboardType="decimal-pad"
@@ -117,11 +121,11 @@ function SheetBody({ onClose }: { onClose: () => void }) {
             placeholder="0"
           />
           <Text style={{ fontSize: textSize.md, color: tokens.muted, marginLeft: 2 }}>
-            মোট: <Text style={{ fontWeight: '700', color: tokens.ink }}>{formatTaka(draftTotal)}</Text>
+            {s.common.total}: <Text style={{ fontWeight: '700', color: tokens.ink }}>{formatTaka(draftTotal)}</Text>
           </Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Button label="বাতিল" variant="secondary" onPress={cancel} style={{ flex: 1 }} />
-            <Button label="সেভ করুন" icon="checkmark" onPress={save} style={{ flex: 1 }} />
+            <Button label={s.common.cancel} variant="secondary" onPress={cancel} style={{ flex: 1 }} />
+            <Button label={s.common.save} icon="checkmark" onPress={save} style={{ flex: 1 }} />
           </View>
         </>
       ) : (
@@ -130,31 +134,31 @@ function SheetBody({ onClose }: { onClose: () => void }) {
             <ListRow
               icon="cash-outline"
               tint={tokens.primary}
-              title="নগদ"
-              subtitle="হাতে আছে"
+              title={t.cash}
+              subtitle={t.cashSubtitle}
               trailing={<AmountText paisa={current.cash} color={tokens.ink} />}
             />
             <ListRow
               divider
               icon="business-outline"
               tint={tokens.lent}
-              title="ব্যাংক অ্যাকাউন্ট"
-              subtitle="সেভিংস / কারেন্ট অ্যাকাউন্ট"
+              title={t.bank}
+              subtitle={t.bankSubtitle}
               trailing={<AmountText paisa={current.bank} color={tokens.ink} />}
             />
             <ListRow
               divider
               icon="phone-portrait-outline"
               tint={tokens.borrowed}
-              title="মোবাইল ব্যাংকিং"
-              subtitle="বিকাশ, নগদ, রকেট"
+              title={t.mfs}
+              subtitle={t.mfsSubtitle}
               trailing={<AmountText paisa={current.mfs} color={tokens.ink} />}
             />
           </ListGroup>
           <Text style={{ fontSize: textSize.sm, color: tokens.muted, textAlign: 'center' }}>
-            সর্বশেষ গোনা হয়েছে · {relativeTimeBn(current.countedAt)}
+            {t.countedAt(relativeTime(current.countedAt))}
           </Text>
-          <Button label="ব্যালেন্স আপডেট করুন" icon="create-outline" onPress={() => setEditing(true)} />
+          <Button label={t.update} icon="create-outline" onPress={() => setEditing(true)} />
         </>
       )}
     </>

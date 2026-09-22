@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { buildActivities, type Activity } from '@/lib/activity';
 import { computeDashboard, type DashboardSnapshot } from '@/lib/calc';
 import type { MonthKey } from '@/lib/date';
+import { useLanguage } from '@/lib/i18n';
 import { useDataStore } from '@/stores/data';
 
 /** How many of the latest entries Home shows. */
@@ -15,9 +16,11 @@ export function useActivities(): Activity[] {
   const loans = useDataStore((s) => s.loans);
   const loanPayments = useDataStore((s) => s.loanPayments);
   const categories = useDataStore((s) => s.categories);
+  // Every row's title and subtitle is written in the current language, so a switch rebuilds them.
+  const lang = useLanguage();
   return useMemo(
-    () => buildActivities(incomes, expenses, loans, categories, loanPayments),
-    [incomes, expenses, loans, categories, loanPayments],
+    () => buildActivities(incomes, expenses, loans, categories, loanPayments, lang),
+    [incomes, expenses, loans, categories, loanPayments, lang],
   );
 }
 

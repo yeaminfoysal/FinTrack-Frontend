@@ -5,10 +5,13 @@ import { LoanForm } from '@/components/forms/loan-form';
 import { ModalShell, useCloseModal } from '@/components/modal-shell';
 import { PageTitle } from '@/components/page-title';
 import { EmptyState } from '@/components/ui/empty-state';
+import { useStrings } from '@/lib/i18n';
 import { useDataStore } from '@/stores/data';
 
 export default function LoanScreen() {
   const { id, direction } = useLocalSearchParams<{ id?: string; direction?: string }>();
+  const strings = useStrings();
+  const t = strings.addScreen;
   const close = useCloseModal();
   // Opened with ?id=… from a list → edit that loan. Snapshot it once so the form
   // doesn't flip to "not found" while the modal closes after a delete.
@@ -18,16 +21,16 @@ export default function LoanScreen() {
 
   if (id && !existing) {
     return (
-      <ModalShell title="লোন এডিট করুন">
-        <PageTitle title="লোন যোগ" />
-        <EmptyState icon="alert-circle-outline" title="এই লোনটি আর নেই" message="হয়তো আগেই ডিলিট হয়ে গেছে।" />
+      <ModalShell title={t.loanEditTitle}>
+        <PageTitle title={t.loanPageTitle} />
+        <EmptyState icon="alert-circle-outline" title={t.loanGone} message={strings.common.gone} />
       </ModalShell>
     );
   }
 
   return (
-    <ModalShell title={existing ? 'লোন এডিট করুন' : 'নতুন লোন'}>
-      <PageTitle title="লোন যোগ" />
+    <ModalShell title={existing ? t.loanEditTitle : t.loanTitle}>
+      <PageTitle title={t.loanPageTitle} />
       <LoanForm existing={existing} initialDirection={direction === 'BORROWED' ? 'BORROWED' : 'LENT'} onDone={close} />
     </ModalShell>
   );

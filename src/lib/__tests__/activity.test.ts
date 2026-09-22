@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { categorySet } from '@/constants/categories';
-import { buildActivities, dayLabelBn, filterActivities, groupByDay, type Activity } from '@/lib/activity';
-import { dayKeyToIso, dayMonthBn, fullDateBn, weekdayBn } from '@/lib/date';
+import { buildActivities, dayLabel, filterActivities, groupByDay, type Activity } from '@/lib/activity';
+import { dayKeyToIso, dayMonth, fullDate, weekday } from '@/lib/date';
 import { at, category, expense, income, loan, tk } from '@/test/factories';
 
 const titles = (list: Activity[]) => list.map((i) => i.title);
@@ -90,16 +90,16 @@ describe('filterActivities', () => {
   });
 });
 
-describe('dayLabelBn', () => {
-  const label = (day: string) => `${dayMonthBn(dayKeyToIso(day))} · ${weekdayBn(dayKeyToIso(day))}`;
+describe('dayLabel', () => {
+  const label = (day: string) => `${dayMonth(dayKeyToIso(day))} · ${weekday(dayKeyToIso(day))}`;
 
   it('names today and yesterday, and adds the year only for another year', () => {
-    expect(dayLabelBn('2026-09-15', '2026-09-15')).toBe('আজ');
-    expect(dayLabelBn('2026-09-14', '2026-09-15')).toBe('গতকাল');
-    expect(dayLabelBn('2025-12-31', '2026-01-01')).toBe('গতকাল');
-    expect(dayLabelBn('2026-09-10', '2026-09-15')).toBe(label('2026-09-10'));
-    expect(dayLabelBn('2025-12-20', '2026-01-02')).toBe(
-      `${fullDateBn(dayKeyToIso('2025-12-20'))} · ${weekdayBn(dayKeyToIso('2025-12-20'))}`,
+    expect(dayLabel('2026-09-15', '2026-09-15')).toBe('আজ');
+    expect(dayLabel('2026-09-14', '2026-09-15')).toBe('গতকাল');
+    expect(dayLabel('2025-12-31', '2026-01-01')).toBe('গতকাল');
+    expect(dayLabel('2026-09-10', '2026-09-15')).toBe(label('2026-09-10'));
+    expect(dayLabel('2025-12-20', '2026-01-02')).toBe(
+      `${fullDate(dayKeyToIso('2025-12-20'))} · ${weekday(dayKeyToIso('2025-12-20'))}`,
     );
   });
 });

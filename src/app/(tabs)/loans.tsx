@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
 
 import { LoanPaymentSheet } from '@/components/loan-payment-sheet';
@@ -16,9 +16,10 @@ import { Text } from '@/components/ui/text';
 import { withAlpha } from '@/constants/tokens';
 import { textSize } from '@/constants/typography';
 import { loanOutstanding, loanSettled, outstandingLoans, paidOnLoan } from '@/lib/calc';
-import { dayMonthBn, fullDateBn } from '@/lib/date';
+import { dayMonth, fullDate } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
-import { dueLabelBn, loanDue } from '@/lib/loan-due';
+import { useStrings } from '@/lib/i18n';
+import { dueLabel, loanDue } from '@/lib/loan-due';
 import { formatTaka } from '@/lib/money';
 import type { Loan, LoanDirection, LoanPayment } from '@/lib/types';
 import { useTheme } from '@/providers/theme-provider';
@@ -26,13 +27,17 @@ import { useDataStore } from '@/stores/data';
 
 type SortKey = 'date' | 'amount';
 
-const DIRECTION_OPTIONS: { value: LoanDirection; label: string }[] = [
-  { value: 'LENT', label: 'ধার দেওয়া' },
-  { value: 'BORROWED', label: 'ধার নেওয়া' },
-];
-
 export default function LoansScreen() {
   const { tokens } = useTheme();
+  const strings = useStrings();
+  const t = strings.loansScreen;
+  const directionOptions = useMemo<{ value: LoanDirection; label: string }[]>(
+    () => [
+      { value: 'LENT', label: strings.activity.lent },
+      { value: 'BORROWED', label: strings.activity.borrowed },
+    ],
+    [strings],
+  );
   const router = useRouter();
   const [tab, setTab] = useState<LoanDirection>('LENT');
   const [sort, setSort] = useState<SortKey>('date');
@@ -70,36 +75,36 @@ export default function LoansScreen() {
         }}>
         <View style={{ flex: 1 }}>
           <Text accessibilityRole="header" style={{ fontSize: textSize.xl, fontWeight: '700', color: tokens.ink }}>
-            পাওনা-দেনা
+            {strings.tabs.loans}
           </Text>
-          <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>কে আপনাকে দেবে, আপনি কাকে দেবেন</Text>
+          <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>{t.subtitle}</Text>
         </View>
         <IconButton
           icon="swap-vertical"
-          label={sort === 'date' ? 'টাকার পরিমাণ অনুযায়ী সাজান' : 'তারিখ অনুযায়ী সাজান'}
+          label={sort === 'date' ? t.sortByAmount : t.sortByDate}
           onPress={() => setSort(sort === 'date' ? 'amount' : 'date')}
         />
       </View>
 
       <View style={{ flexDirection: 'row', gap: 11, marginBottom: 18 }}>
         <TotalCard
-          label="মোট পাওনা"
+          label={t.totalLent}
           amount={outstandingLoans(visible, 'LENT', payments)}
           count={runningCount(lent)}
           fill={tokens.lentFill}
         />
         <TotalCard
-          label="মোট দেনা"
+          label={t.totalBorrowed}
           amount={outstandingLoans(visible, 'BORROWED', payments)}
           count={runningCount(borrowed)}
           fill={tokens.borrowedFill}
         />
       </View>
 
-      <Segmented options={DIRECTION_OPTIONS} value={tab} onChange={setTab} accessibilityLabel="লোনের ধরন" />
+      <Segmented options={directionOptions} value={tab} onChange={setTab} accessibilityLabel={strings.loanForm.kindA11y} />
       {list.length > 0 ? (
         <Text style={{ fontSize: textSize.sm, color: tokens.muted, marginTop: 10, marginHorizontal: 4 }}>
-          চলমান আগে, তারপর {sort === 'date' ? 'নতুন তারিখ আগে' : 'বেশি টাকা আগে'}
+          {t.sortNote(sort === 'date' ? t.newestFirst : t.largestFirst)}
         </Text>
       ) : null}
     </View>
@@ -122,18 +127,19 @@ export default function LoansScreen() {
           }}>
           <Icon name="information-circle-outline" size={18} color={tokens.muted} />
           <Text style={{ flex: 1, fontSize: textSize.sm, color: tokens.muted, lineHeight: 20 }}>
-            ধার নেওয়া টাকা <Text style={{ color: tokens.ink, fontWeight: '700' }}>আয় নয়</Text> — এটি ফেরতযোগ্য দায়। শোধ করলে
-            সেটি খরচও নয়, শুধু দায় নিষ্পত্তি।
+            {t.borrowedPrefix}
+            <Text style={{ color: tokens.ink, fontWeight: '700' }}>{t.borrowedEmphasis}</Text>
+            {t.borrowedSuffix}
           </Text>
         </View>
       ) : null}
-      {list.length > 0 ? <Button label="নতুন লোন যোগ করুন" icon="add" onPress={addLoan} style={{ marginTop: 18 }} /> : null}
+      {list.length > 0 ? <Button label={t.addLoan} icon="add" onPress={addLoan} style={{ marginTop: 18 }} /> : null}
     </>
   );
 
   return (
     <Screen scroll={false} padded={false}>
-      <PageTitle title="পাওনা-দেনা" />
+      <PageTitle title={strings.tabs.loans} />
       <FlatList
         data={list}
         keyExtractor={(loan) => loan.id}
@@ -150,13 +156,9 @@ export default function LoansScreen() {
         ListEmptyComponent={
           <EmptyState
             icon="people-outline"
-            title={tab === 'LENT' ? 'কোনো পাওনা নেই' : 'কোনো দেনা নেই'}
-            message={
-              tab === 'LENT'
-                ? 'কাউকে ধার দিলে এখানে লিখে রাখুন — কে কত ফেরত দেবে মনে থাকবে।'
-                : 'কারো থেকে ধার নিলে এখানে লিখে রাখুন — কাকে কত ফেরত দিতে হবে মনে থাকবে।'
-            }
-            actionLabel="নতুন লোন যোগ করুন"
+            title={tab === 'LENT' ? t.emptyLentTitle : t.emptyBorrowedTitle}
+            message={tab === 'LENT' ? t.emptyLentMessage : t.emptyBorrowedMessage}
+            actionLabel={t.addLoan}
             onAction={addLoan}
           />
         }
@@ -175,15 +177,16 @@ function LoanGap() {
 
 function TotalCard({ label, amount, count, fill }: { label: string; amount: number; count: number; fill: string }) {
   const { tokens } = useTheme();
+  const t = useStrings().loansScreen;
   return (
     <View
       accessible
-      accessibilityLabel={`${label} ${formatTaka(amount)}, ${localDigits(count)}টি চলমান`}
+      accessibilityLabel={t.summaryA11y(label, formatTaka(amount), localDigits(count))}
       style={{ flex: 1, borderRadius: 18, padding: 15, backgroundColor: fill, overflow: 'hidden' }}>
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', backgroundColor: 'rgba(0,0,0,0.12)' }} />
       <Text style={{ fontSize: textSize.sm, color: tokens.onFill }}>{label}</Text>
       <AmountText paisa={amount} size="xl" weight="700" color={tokens.onFill} numberOfLines={1} style={{ marginTop: 5 }} />
-      <Text style={{ fontSize: textSize.sm, color: tokens.onFill, marginTop: 3 }}>{localDigits(count)}টি চলমান</Text>
+      <Text style={{ fontSize: textSize.sm, color: tokens.onFill, marginTop: 3 }}>{t.activeCount(localDigits(count))}</Text>
     </View>
   );
 }
@@ -200,13 +203,21 @@ function LoanCard({
   onOpen: () => void;
 }) {
   const { tokens } = useTheme();
+  const strings = useStrings();
+  const t = strings.loansScreen;
   const isLent = loan.direction === 'LENT';
   const color = isLent ? tokens.lent : tokens.borrowed;
   const paid = paidOnLoan(loan, payments);
   const remaining = loanOutstanding(loan, payments);
   const settled = remaining <= 0;
   const partly = !settled && paid > 0;
-  const statusLabel = settled ? (isLent ? 'ফেরত পাওয়া' : 'শোধ করা') : partly ? 'আংশিক' : 'চলমান';
+  const statusLabel = settled
+    ? isLent
+      ? strings.activity.returned
+      : strings.activity.repaid
+    : partly
+      ? strings.activity.partly
+      : strings.activity.ongoing;
   const due = loanDue(loan, settled);
   const settledOn = loan.settledDate ?? (settled ? payments.filter((p) => p.loanId === loan.id && !p.isDeleted).at(-1)?.date : null);
 
@@ -224,7 +235,7 @@ function LoanCard({
         onPress={onOpen}
         accessibilityRole="button"
         accessibilityLabel={`${loan.personName}, ${formatTaka(loan.amount)}, ${statusLabel}`}
-        accessibilityHint="এডিট করতে ট্যাপ করুন"
+        accessibilityHint={strings.activity.editHint}
         style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, opacity: pressed ? 0.7 : 1 })}>
         <View
           style={{
@@ -244,7 +255,7 @@ function LoanCard({
             {loan.personName}
           </Text>
           <Text numberOfLines={2} style={{ fontSize: textSize.sm, color: tokens.muted }}>
-            {dayMonthBn(loan.date)}
+            {dayMonth(loan.date)}
             {loan.note ? ` · ${loan.note}` : ''}
           </Text>
         </View>
@@ -284,37 +295,45 @@ function LoanCard({
         <View style={{ gap: 6 }}>
           <View
             accessible
-            accessibilityLabel={`${formatTaka(paid)} ${isLent ? 'ফেরত পাওয়া গেছে' : 'শোধ করা হয়েছে'}, বাকি ${formatTaka(remaining)}`}
+            accessibilityLabel={t.progressA11y(
+              formatTaka(paid),
+              isLent ? strings.loanForm.settledLent : strings.loanForm.settledBorrowed,
+              formatTaka(remaining),
+            )}
             style={{ height: 8, borderRadius: 4, overflow: 'hidden', backgroundColor: tokens.chip }}>
             <View style={{ width: `${Math.round((paid / loan.amount) * 100)}%`, height: '100%', backgroundColor: color }} />
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
             <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>
-              {isLent ? 'ফেরত পেয়েছি' : 'শোধ করেছি'} {formatTaka(paid)}
+              {strings.loanPayment.paidLine(isLent ? strings.loanPayment.lentVerb : strings.loanPayment.borrowedVerb, formatTaka(paid))}
             </Text>
             <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>
-              বাকি <Text style={{ fontWeight: '700', color }}>{formatTaka(remaining)}</Text>
+              {strings.loanPayment.remainingPrefix}
+              <Text style={{ fontWeight: '700', color }}>{formatTaka(remaining)}</Text>
             </Text>
           </View>
         </View>
       ) : null}
 
-      {due ? <DueBadge label={dueLabelBn(due)} overdue={due.overdue} soon={due.soon} /> : null}
+      {due ? <DueBadge label={dueLabel(due)} overdue={due.overdue} soon={due.soon} /> : null}
 
       {settled ? (
         settledOn ? (
           <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>
-            {isLent ? 'ফেরত পাওয়া গেছে' : 'শোধ করা হয়েছে'} · {fullDateBn(settledOn)}
+            {strings.loanForm.settledOn(
+              isLent ? strings.loanForm.settledLent : strings.loanForm.settledBorrowed,
+              fullDate(settledOn),
+            )}
           </Text>
         ) : null
       ) : (
         <Button
-          label={isLent ? 'ফেরত পেয়েছি' : 'শোধ করেছি'}
+          label={isLent ? strings.loanForm.recordLent : strings.loanForm.recordBorrowed}
           icon="checkmark"
           variant="outline"
           color={color}
           size="sm"
-          accessibilityHint="পুরোটা বা অংশে হিসাব লেখার শিট খুলবে"
+          accessibilityHint={t.recordHint}
           onPress={onPay}
         />
       )}

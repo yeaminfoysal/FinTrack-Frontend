@@ -14,6 +14,7 @@ import { textSize } from '@/constants/typography';
 import { recentDaySpends } from '@/lib/calc';
 import { todayKey } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
+import { useStrings } from '@/lib/i18n';
 import { formatTaka } from '@/lib/money';
 import { useTheme } from '@/providers/theme-provider';
 import { useDataStore } from '@/stores/data';
@@ -23,6 +24,7 @@ const SPEND_DAYS = 7;
 
 export function TodaySpendCard({ onPress }: { onPress: () => void }) {
   const { tokens } = useTheme();
+  const t = useStrings().todaySpend;
   const expenses = useDataStore((s) => s.expenses);
   const days = useMemo(() => recentDaySpends(expenses, todayKey(), SPEND_DAYS), [expenses]);
 
@@ -37,8 +39,8 @@ export function TodaySpendCard({ onPress }: { onPress: () => void }) {
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`আজকের খরচ ${formatTaka(today)}`}
-      accessibilityHint="লেনদেনের তালিকা খুলবে"
+      accessibilityLabel={t.a11y(formatTaka(today))}
+      accessibilityHint={t.openHint}
       style={({ pressed }) => ({
         marginTop: 11,
         borderRadius: radii.lg,
@@ -62,13 +64,13 @@ export function TodaySpendCard({ onPress }: { onPress: () => void }) {
           <Icon name="today-outline" size={22} color={today > 0 ? tokens.expense : tokens.primary} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: textSize.md, fontWeight: '600', color: tokens.ink }}>আজকের খরচ</Text>
+          <Text style={{ fontSize: textSize.md, fontWeight: '600', color: tokens.ink }}>{t.title}</Text>
           <Text numberOfLines={1} style={{ fontSize: textSize.sm, color: tokens.muted }}>
             {today > 0
               ? average > 0
-                ? `দিনে গড়ে ${formatTaka(average)}`
-                : 'প্রথম দিনের হিসাব'
-              : 'আজ এখনো কিছু লেখা হয়নি'}
+                ? t.average(formatTaka(average))
+                : t.firstDay
+              : t.nothingYet}
           </Text>
         </View>
         <AmountText
@@ -92,6 +94,7 @@ export function TodaySpendCard({ onPress }: { onPress: () => void }) {
 /** "গড়ের চেয়ে ২০% বেশি" — spending less than usual is the good direction, so it reads green. */
 function Trend({ percent }: { percent: number }) {
   const { tokens } = useTheme();
+  const t = useStrings().todaySpend;
   const more = percent > 0;
   const color = more ? tokens.expense : tokens.income;
   const icon: IconName = more ? 'trending-up' : 'trending-down';
@@ -100,10 +103,9 @@ function Trend({ percent }: { percent: number }) {
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
       <Icon name={icon} size={15} color={color} />
       <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>
-        গড়ের চেয়ে{' '}
-        <Text style={{ fontWeight: '700', color }}>
-          {localDigits(Math.abs(percent))}% {more ? 'বেশি' : 'কম'}
-        </Text>
+        {t.trendPrefix}
+        <Text style={{ fontWeight: '700', color }}>{t.trendValue(localDigits(Math.abs(percent)), more)}</Text>
+        {t.trendSuffix}
       </Text>
     </View>
   );

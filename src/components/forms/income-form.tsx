@@ -10,6 +10,7 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { DEFAULT_INCOME_SOURCE } from '@/constants/categories';
 import { useCategorySet } from '@/hooks/use-categories';
 import { dayKeyOf, dayKeyToIso, todayKey } from '@/lib/date';
+import { useStrings } from '@/lib/i18n';
 import { amountInputFromPaisa, formatTaka, toPaisa } from '@/lib/money';
 import type { Income } from '@/lib/types';
 import { useTheme } from '@/providers/theme-provider';
@@ -25,6 +26,9 @@ interface IncomeFormProps {
 
 export function IncomeForm({ existing, onDone }: IncomeFormProps) {
   const { tokens } = useTheme();
+  const strings = useStrings();
+  const t = strings.incomeForm;
+  const common = strings.common;
   const sources = useCategorySet('INCOME');
   const addIncome = useDataStore((s) => s.addIncome);
   const updateIncome = useDataStore((s) => s.updateIncome);
@@ -57,7 +61,7 @@ export function IncomeForm({ existing, onDone }: IncomeFormProps) {
   const save = () => {
     const paisa = toPaisa(amount);
     if (paisa <= 0) {
-      setAmountError('আয়ের পরিমাণ লিখুন।');
+      setAmountError(t.amountRequired);
       return;
     }
     // Keep the stored timestamp unless the day itself was changed.
@@ -69,16 +73,16 @@ export function IncomeForm({ existing, onDone }: IncomeFormProps) {
       updateIncome(existing.id, values);
       onDone();
       showToast({
-        message: 'আয় আপডেট হয়েছে',
-        actionLabel: 'ফিরিয়ে নিন',
+        message: t.updated,
+        actionLabel: common.undo,
         onAction: () => updateIncome(existing.id, previous),
       });
     } else {
       const id = addIncome(values);
       onDone();
       showToast({
-        message: `আয় যোগ হয়েছে · ${formatTaka(paisa)}`,
-        actionLabel: 'ফিরিয়ে নিন',
+        message: t.added(formatTaka(paisa)),
+        actionLabel: common.undo,
         onAction: () => deleteIncome(id),
       });
     }
@@ -87,17 +91,17 @@ export function IncomeForm({ existing, onDone }: IncomeFormProps) {
   const remove = async () => {
     if (!existing) return;
     const confirmed = await confirmDialog({
-      title: 'আয় ডিলিট করবেন?',
-      message: 'এই আয়টি মুছে যাবে এবং মাসের হিসাব আবার গণনা হবে।',
-      confirmLabel: 'ডিলিট',
+      title: t.deleteTitle,
+      message: t.deleteMessage,
+      confirmLabel: common.delete,
       destructive: true,
     });
     if (!confirmed) return;
     deleteIncome(existing.id);
     onDone();
     showToast({
-      message: 'আয় ডিলিট হয়েছে',
-      actionLabel: 'ফিরিয়ে নিন',
+      message: t.deleted,
+      actionLabel: common.undo,
       onAction: () => restoreIncome(existing.id),
     });
   };
@@ -115,28 +119,28 @@ export function IncomeForm({ existing, onDone }: IncomeFormProps) {
         accent={tokens.income}
       />
       <View style={{ gap: 7 }}>
-        <FieldLabel>উৎস</FieldLabel>
+        <FieldLabel>{t.sourceLabel}</FieldLabel>
         <ChipSelect
           options={sourceOptions}
           value={source}
           onChange={setSource}
-          accessibilityLabel="আয়ের উৎস"
+          accessibilityLabel={t.sourceA11y}
           onAdd={() => setAddingSource(true)}
-          addLabel="নতুন উৎস"
+          addLabel={t.addSource}
         />
       </View>
       <DateField value={day} onChange={setDay} />
       <Field
-        label="নোট (ঐচ্ছিক)"
+        label={strings.ui.noteLabel}
         value={note}
         onChangeText={setNote}
-        placeholder="যেমন: সেপ্টেম্বরের বেতন"
+        placeholder={t.notePlaceholder}
         multiline
         maxLength={500}
       />
-      <Button label={existing ? 'পরিবর্তন সেভ করুন' : 'আয় সেভ করুন'} icon="checkmark" onPress={save} style={{ marginTop: 4 }} />
+      <Button label={existing ? common.saveChanges : t.saveNew} icon="checkmark" onPress={save} style={{ marginTop: 4 }} />
       {existing ? (
-        <Button label="ডিলিট করুন" icon="trash-outline" variant="outline" color={tokens.expense} onPress={() => void remove()} />
+        <Button label={common.deleteButton} icon="trash-outline" variant="outline" color={tokens.expense} onPress={() => void remove()} />
       ) : null}
       {addingSource ? (
         <CategorySheet visible onClose={() => setAddingSource(false)} set={sources} onSaved={setSource} />

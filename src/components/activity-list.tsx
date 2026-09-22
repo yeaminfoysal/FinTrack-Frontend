@@ -7,13 +7,15 @@ import { ListGroup, ListGroupItem, ListRow } from '@/components/ui/list-row';
 import { screenListContentStyle } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { textSize } from '@/constants/typography';
-import { dayLabelBn, type Activity, type ActivityDay } from '@/lib/activity';
+import { dayLabel, type Activity, type ActivityDay } from '@/lib/activity';
+import { useStrings } from '@/lib/i18n';
 import { formatTaka } from '@/lib/money';
 import { useTheme } from '@/providers/theme-provider';
 
 /** A day's heading with that day's income and expense next to it. */
 function DayHeader({ day, style }: { day: ActivityDay; style?: StyleProp<ViewStyle> }) {
   const { tokens } = useTheme();
+  const t = useStrings().activity;
   return (
     <View
       style={[
@@ -24,18 +26,18 @@ function DayHeader({ day, style }: { day: ActivityDay; style?: StyleProp<ViewSty
         accessibilityRole="header"
         numberOfLines={1}
         style={{ flexShrink: 1, fontSize: textSize.sm, fontWeight: '700', color: tokens.muted }}>
-        {dayLabelBn(day.day)}
+        {dayLabel(day.day)}
       </Text>
       <Text numberOfLines={1} style={{ fontSize: textSize.sm, color: tokens.muted, fontVariant: ['tabular-nums'] }}>
         {day.income > 0 ? (
           <>
-            আয় <Text style={{ color: tokens.income, fontWeight: '600' }}>{formatTaka(day.income)}</Text>
+            {t.income} <Text style={{ color: tokens.income, fontWeight: '600' }}>{formatTaka(day.income)}</Text>
           </>
         ) : null}
         {day.income > 0 && day.expense > 0 ? ' · ' : null}
         {day.expense > 0 ? (
           <>
-            খরচ <Text style={{ color: tokens.expense, fontWeight: '600' }}>{formatTaka(day.expense)}</Text>
+            {t.expense} <Text style={{ color: tokens.expense, fontWeight: '600' }}>{formatTaka(day.expense)}</Text>
           </>
         ) : null}
       </Text>
@@ -101,6 +103,7 @@ export function ActivitySectionList({
 
 export function ActivityRow({ item, divider }: { item: Activity; divider?: boolean }) {
   const { tokens } = useTheme();
+  const editHint = useStrings().activity.editHint;
   const router = useRouter();
   const color = item.settled
     ? tokens.muted
@@ -122,7 +125,7 @@ export function ActivityRow({ item, divider }: { item: Activity; divider?: boole
       divider={divider}
       onPress={open}
       accessibilityLabel={`${item.title}, ${item.subtitle}, ${formatTaka(Math.abs(item.amount))}`}
-      accessibilityHint="এডিট করতে ট্যাপ করুন"
+      accessibilityHint={editHint}
       trailing={
         <AmountText paisa={item.amount} signed={item.kind === 'income' || item.kind === 'expense'} color={color} />
       }

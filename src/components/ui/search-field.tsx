@@ -6,6 +6,7 @@ import { IconButton } from '@/components/ui/icon-button';
 import { FONT_FAMILY } from '@/constants/fonts';
 import { radii } from '@/constants/tokens';
 import { textSize } from '@/constants/typography';
+import { useStrings } from '@/lib/i18n';
 import { useTheme } from '@/providers/theme-provider';
 
 interface SearchFieldProps {
@@ -17,6 +18,7 @@ interface SearchFieldProps {
 /** Search input with a magnifier and a clear button. */
 export function SearchField({ value, onChangeText, placeholder }: SearchFieldProps) {
   const { tokens } = useTheme();
+  const t = useStrings().ui;
   const [focused, setFocused] = useState(false);
 
   return (
@@ -55,7 +57,7 @@ export function SearchField({ value, onChangeText, placeholder }: SearchFieldPro
         }}
       />
       {value ? (
-        <IconButton icon="close-circle" label="খোঁজা মুছুন" variant="plain" color={tokens.muted} onPress={() => onChangeText('')} />
+        <IconButton icon="close-circle" label={t.clearSearch} variant="plain" color={tokens.muted} onPress={() => onChangeText('')} />
       ) : null}
     </View>
   );

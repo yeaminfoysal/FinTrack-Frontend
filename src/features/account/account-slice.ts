@@ -3,7 +3,7 @@
  * web snapshot), reload after a sync pull, the demo dataset, and switching accounts.
  */
 import {
-  DEFAULT_PROFILE,
+  defaultProfile,
   DEMO_OWNER,
   type AccountActions,
   type DataFields,
@@ -66,7 +66,7 @@ export const createAccountSlice: DataSlice<DataFields & AccountActions> = (set, 
   recurrings: [],
   summaries: [],
   practicals: {},
-  profile: DEFAULT_PROFILE,
+  profile: defaultProfile(),
   profileDirty: false,
   onboardingDone: false,
   lastExpenseCategory: null,
@@ -90,7 +90,7 @@ export const createAccountSlice: DataSlice<DataFields & AccountActions> = (set, 
         recurrings: getRecurrings(db),
         summaries: getSummaries(db),
         practicals: practicalsByMonth(getPracticals(db)),
-        profile: profileRaw ? (JSON.parse(profileRaw) as UserProfile) : DEFAULT_PROFILE,
+        profile: profileRaw ? (JSON.parse(profileRaw) as UserProfile) : defaultProfile(),
         profileDirty: getMeta(db, 'profileDirty') === '1',
         lastExpenseCategory: getMeta(db, 'lastExpenseCategory') || null,
         lastIncomeSource: getMeta(db, 'lastIncomeSource') || null,
@@ -177,7 +177,7 @@ export const createAccountSlice: DataSlice<DataFields & AccountActions> = (set, 
       return;
     }
     // Different owner (or leftover demo data) → wipe and start fresh.
-    const nextProfile: UserProfile = { ...DEFAULT_PROFILE, email, ...patch };
+    const nextProfile: UserProfile = { ...defaultProfile(), email, ...patch };
     withDb((db) => {
       clearAllData(db);
       setMeta(db, 'profile', JSON.stringify(nextProfile));

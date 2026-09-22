@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import { Link, useRouter } from 'expo-router';
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 
 import { ModalShell } from '@/components/modal-shell';
@@ -18,8 +18,9 @@ import { Text } from '@/components/ui/text';
 import { fontFamilyFor } from '@/constants/fonts';
 import { textSize } from '@/constants/typography';
 import { useSyncStatus } from '@/hooks/use-sync-status';
-import { relativeTimeBn } from '@/lib/date';
+import { relativeTime } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
+import { LANGUAGES, setLanguage, useLanguage, useStrings, type Lang } from '@/lib/i18n';
 import { amountInputFromPaisa, formatTaka, sanitizeAmountInput, toPaisa } from '@/lib/money';
 import { useTheme, type ThemePreference } from '@/providers/theme-provider';
 import { countPending, useDataStore } from '@/stores/data';
@@ -27,17 +28,27 @@ import { useSessionStore } from '@/stores/session';
 import { useSyncStore } from '@/stores/sync';
 import { confirmDialog, showToast } from '@/stores/ui';
 
-const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
-  { value: 'light', label: 'লাইট' },
-  { value: 'dark', label: 'ডার্ক' },
-  { value: 'system', label: 'অটো' },
-];
-
 /** The developer's site, opened from the credit line at the bottom of this screen. */
 const DEVELOPER_URL = 'https://yeamin-foysal.vercel.app';
 
 export default function SettingsScreen() {
   const { tokens, preference, setPreference } = useTheme();
+  const strings = useStrings();
+  const t = strings.settings;
+  const lang = useLanguage();
+  const themeOptions = useMemo<{ value: ThemePreference; label: string }[]>(
+    () => [
+      { value: 'light', label: t.themeLight },
+      { value: 'dark', label: t.themeDark },
+      { value: 'system', label: t.themeSystem },
+    ],
+    [t],
+  );
+  // Each language is offered in its own name, so it reads right whichever one is on.
+  const languageOptions = useMemo<{ value: Lang; label: string }[]>(
+    () => LANGUAGES.map((value) => ({ value, label: strings.languageName[value] })),
+    [strings],
+  );
   const router = useRouter();
   const profile = useDataStore((s) => s.profile);
   const logout = useSessionStore((s) => s.logout);
@@ -47,13 +58,13 @@ export default function SettingsScreen() {
   const signOut = async () => {
     const pendingNow = countPending(useDataStore.getState());
     const confirmed = await confirmDialog({
-      title: 'লগআউট করবেন?',
+      title: t.logoutTitle,
       message: sync.isDemo
-        ? 'ডেমো থেকে বের হবেন। ডেমোর ডেটা সার্ভারে যায় না।'
+        ? t.logoutDemo
         : pendingNow > 0
-          ? `${localDigits(pendingNow)}টি এন্ট্রি এখনো সার্ভারে যায়নি। লগআউটের আগে সিঙ্ক করার চেষ্টা করা হবে।`
-          : 'আবার লগইন করলে আপনার সব ডেটা ফিরে আসবে।',
-      confirmLabel: 'লগআউট',
+          ? t.logoutPending(localDigits(pendingNow))
+          : t.logoutClean,
+      confirmLabel: t.logoutConfirm,
       destructive: true,
     });
     if (!confirmed) return;
@@ -64,10 +75,10 @@ export default function SettingsScreen() {
       const stillPending = countPending(useDataStore.getState());
       if (stillPending > 0) {
         const force = await confirmDialog({
-          title: 'সিঙ্ক করা যায়নি',
-          message: `${localDigits(stillPending)}টি এন্ট্রি এখনো সার্ভারে যায়নি (ইন্টারনেট আছে কি?)। এই অ্যাকাউন্টেই আবার লগইন করলে এগুলো থাকবে, কিন্তু অন্য অ্যাকাউন্টে লগইন করলে মুছে যাবে।`,
-          confirmLabel: 'তবুও লগআউট',
-          cancelLabel: 'থাকুন',
+          title: t.syncFailedTitle,
+          message: t.syncFailedMessage(localDigits(stillPending)),
+          confirmLabel: t.logoutAnyway,
+          cancelLabel: t.stay,
           destructive: true,
         });
         if (!force) {
@@ -80,8 +91,8 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ModalShell title="সেটিংস">
-      <PageTitle title="সেটিংস" />
+    <ModalShell title={t.title}>
+      <PageTitle title={t.title} />
       {/* Profile */}
       <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         <Avatar name={profile.name} size={52} />
@@ -90,28 +101,26 @@ export default function SettingsScreen() {
             {profile.name}
           </Text>
           <Text numberOfLines={1} style={{ fontSize: textSize.sm, color: tokens.muted }}>
-            {profile.email || 'ইমেইল নেই'}
+            {profile.email || t.noEmail}
           </Text>
         </View>
       </Card>
 
       {/* Sync */}
-      <SettingGroup label="সিঙ্ক">
+      <SettingGroup label={t.syncGroup}>
         <Card style={{ gap: 12 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
             <SyncBadge />
             {sync.lastSyncedAt ? (
-              <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>শেষ সিঙ্ক: {relativeTimeBn(sync.lastSyncedAt)}</Text>
+              <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>{t.lastSync(relativeTime(sync.lastSyncedAt))}</Text>
             ) : null}
           </View>
           <Text style={{ fontSize: textSize.sm, lineHeight: 20, color: tokens.muted }}>
-            {sync.isDemo
-              ? 'ডেমো মোডে ডেটা শুধু এই ডিভাইসে থাকে, সার্ভারে যায় না।'
-              : 'সব এন্ট্রি আগে এই ডিভাইসে সেভ হয়; ইন্টারনেট পেলে নিজে থেকেই সার্ভারে যায়।'}
+            {sync.isDemo ? t.demoNote : t.syncNote}
           </Text>
           {!sync.isDemo ? (
             <Button
-              label="এখনই সিঙ্ক করুন"
+              label={t.syncNow}
               icon="sync-outline"
               variant="secondary"
               size="sm"
@@ -123,18 +132,18 @@ export default function SettingsScreen() {
       </SettingGroup>
 
       {/* Editable profile */}
-      <SettingGroup label="প্রোফাইল">
+      <SettingGroup label={t.profileGroup}>
         {/* Remount when the stored profile changes (loaded from storage, pulled from the
             server) so the fields never keep stale values that a save would write back. */}
         <ProfileForm key={`${profile.name}|${profile.openingSavings}`} />
       </SettingGroup>
 
       {/* Entry helpers */}
-      <SettingGroup label="এন্ট্রি">
+      <SettingGroup label={t.entryGroup}>
         <ListGroup>
           <ListRow
-            title="ক্যাটাগরি ও উৎস"
-            subtitle="নিজের খরচের ক্যাটাগরি ও আয়ের উৎস যোগ করুন"
+            title={t.categoriesRow}
+            subtitle={t.categoriesRowSubtitle}
             icon="pricetags-outline"
             tint={tokens.primary}
             onPress={() => router.push('/categories')}
@@ -142,8 +151,8 @@ export default function SettingsScreen() {
           />
           <ListRow
             divider
-            title="নিয়মিত লেনদেন"
-            subtitle="বাসা ভাড়া, বেতন, বিল — নিজে থেকেই লেখা হবে"
+            title={t.recurringRow}
+            subtitle={t.recurringRowSubtitle}
             icon="repeat-outline"
             tint={tokens.primary}
             onPress={() => router.push('/recurring')}
@@ -153,28 +162,31 @@ export default function SettingsScreen() {
       </SettingGroup>
 
       {/* Reminders */}
-      <SettingGroup label="রিমাইন্ডার">
+      <SettingGroup label={t.remindersGroup}>
         <ReminderSettings />
       </SettingGroup>
 
       {/* Preferences */}
-      <SettingGroup label="থিম">
-        <Segmented options={THEME_OPTIONS} value={preference} onChange={setPreference} accessibilityLabel="থিম" />
+      <SettingGroup label={t.languageGroup}>
+        <Segmented options={languageOptions} value={lang} onChange={setLanguage} accessibilityLabel={t.languageGroup} />
+        <Text style={{ fontSize: textSize.sm, lineHeight: 18, color: tokens.muted, marginLeft: 2 }}>{t.languageNote}</Text>
+      </SettingGroup>
+
+      <SettingGroup label={t.themeGroup}>
+        <Segmented options={themeOptions} value={preference} onChange={setPreference} accessibilityLabel={t.themeGroup} />
       </SettingGroup>
 
       {/* Account info (read-only) */}
-      <SettingGroup label="অ্যাকাউন্টের তথ্য">
+      <SettingGroup label={t.accountGroup}>
         <Card soft style={{ gap: 8 }}>
-          <InfoRow label="মুদ্রা" value={profile.currency === 'BDT' ? 'বাংলাদেশি টাকা (৳)' : profile.currency} />
-          <InfoRow label="সময় অঞ্চল" value="ফোনের সময় অনুযায়ী" />
-          <Text style={{ fontSize: textSize.sm, lineHeight: 18, color: tokens.muted }}>
-            মাসের শুরু-শেষ আপনার ফোনের সময় ধরে হিসাব হয়।
-          </Text>
+          <InfoRow label={t.currency} value={profile.currency === 'BDT' ? t.currencyBdt : profile.currency} />
+          <InfoRow label={t.timezone} value={t.timezoneValue} />
+          <Text style={{ fontSize: textSize.sm, lineHeight: 18, color: tokens.muted }}>{t.timezoneNote}</Text>
         </Card>
       </SettingGroup>
 
       <Button
-        label="লগ আউট"
+        label={t.logout}
         icon="log-out-outline"
         variant="outline"
         color={tokens.expense}
@@ -183,10 +195,10 @@ export default function SettingsScreen() {
         style={{ marginTop: 4 }}
       />
       <Text style={{ textAlign: 'center', fontSize: textSize.xs, color: tokens.muted, marginTop: 6 }}>
-        FinTrack · সংস্করণ {localDigits(Constants.expoConfig?.version ?? '1.0.0')}
+        {t.version(localDigits(Constants.expoConfig?.version ?? '1.0.0'))}
       </Text>
       <Text style={{ textAlign: 'center', fontSize: textSize.xs, color: tokens.muted, marginTop: 2 }}>
-        ডেভেলপার{' '}
+        {t.developer}
         <Link
           href={DEVELOPER_URL}
           target="_blank"
@@ -200,6 +212,7 @@ export default function SettingsScreen() {
 }
 
 function ProfileForm() {
+  const t = useStrings().settings;
   const profile = useDataStore((s) => s.profile);
   const editProfile = useDataStore((s) => s.editProfile);
   const [name, setName] = useState(profile.name);
@@ -209,26 +222,26 @@ function ProfileForm() {
   const save = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      setNameError('নাম লিখুন।');
+      setNameError(t.nameRequired);
       return;
     }
     const openingPaisa = toPaisa(opening || '0');
     if (openingPaisa !== profile.openingSavings) {
       const confirmed = await confirmDialog({
-        title: 'শুরুর সেভিংস বদলাবেন?',
-        message: `${formatTaka(profile.openingSavings)} থেকে ${formatTaka(openingPaisa)} হবে। প্রথম মাস থেকে সব মাসের ওপেনিং, সঞ্চয় ও ক্লোজিং আবার হিসাব হবে।`,
-        confirmLabel: 'বদলান',
+        title: t.openingChangeTitle,
+        message: t.openingChangeMessage(formatTaka(profile.openingSavings), formatTaka(openingPaisa)),
+        confirmLabel: t.openingChangeConfirm,
       });
       if (!confirmed) return;
     }
     editProfile({ name: trimmed, openingSavings: openingPaisa });
-    showToast({ message: 'প্রোফাইল সেভ হয়েছে' });
+    showToast({ message: t.profileSaved });
   };
 
   return (
     <>
       <Field
-        label="নাম"
+        label={t.nameLabel}
         value={name}
         onChangeText={(v) => {
           setName(v);
@@ -239,14 +252,14 @@ function ProfileForm() {
         error={nameError}
       />
       <Field
-        label="শুরুর সেভিংস (প্রথম মাস)"
+        label={t.openingLabel}
         value={opening}
         onChangeText={(v) => setOpening(sanitizeAmountInput(v))}
         keyboardType="decimal-pad"
         prefix="৳"
-        hint="অ্যাপ ব্যবহার শুরুর দিন হাতে, ব্যাংকে ও মোবাইল ব্যাংকিংয়ে মোট যত টাকা ছিল। এটা বদলালে সব মাসের হিসাব আবার গণনা হবে।"
+        hint={t.openingHint}
       />
-      <Button label="প্রোফাইল সেভ করুন" icon="checkmark" onPress={() => void save()} />
+      <Button label={t.saveProfile} icon="checkmark" onPress={() => void save()} />
     </>
   );
 }

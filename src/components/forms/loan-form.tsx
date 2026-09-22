@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
 import { LoanPaymentSheet } from '@/components/loan-payment-sheet';
@@ -10,17 +10,13 @@ import { Segmented } from '@/components/ui/segmented';
 import { Text } from '@/components/ui/text';
 import { textSize } from '@/constants/typography';
 import { loanOutstanding, paidOnLoan, paymentsOf } from '@/lib/calc';
-import { dayKeyOf, dayKeyToIso, fullDateBn, todayKey } from '@/lib/date';
+import { dayKeyOf, dayKeyToIso, fullDate, todayKey } from '@/lib/date';
+import { useStrings } from '@/lib/i18n';
 import { amountInputFromPaisa, formatTaka, toPaisa } from '@/lib/money';
 import type { Loan, LoanDirection } from '@/lib/types';
 import { useTheme } from '@/providers/theme-provider';
 import { useDataStore } from '@/stores/data';
 import { confirmDialog, showToast } from '@/stores/ui';
-
-const DIRECTION_OPTIONS: { value: LoanDirection; label: string }[] = [
-  { value: 'LENT', label: 'ধার দেওয়া' },
-  { value: 'BORROWED', label: 'ধার নেওয়া' },
-];
 
 interface LoanFormProps {
   /** Edit this loan; omit to add a new one. */
@@ -32,6 +28,17 @@ interface LoanFormProps {
 
 export function LoanForm({ existing, initialDirection = 'LENT', onDone }: LoanFormProps) {
   const { tokens } = useTheme();
+  const strings = useStrings();
+  const t = strings.loanForm;
+  const common = strings.common;
+  // Rebuilt when the language changes, so the segmented control follows it.
+  const directionOptions = useMemo<{ value: LoanDirection; label: string }[]>(
+    () => [
+      { value: 'LENT', label: strings.activity.lent },
+      { value: 'BORROWED', label: strings.activity.borrowed },
+    ],
+    [strings],
+  );
   const addLoan = useDataStore((s) => s.addLoan);
   const updateLoan = useDataStore((s) => s.updateLoan);
   const deleteLoan = useDataStore((s) => s.deleteLoan);
@@ -62,8 +69,8 @@ export function LoanForm({ existing, initialDirection = 'LENT', onDone }: LoanFo
   const save = () => {
     const name = personName.trim();
     const paisa = toPaisa(amount);
-    setNameError(name ? null : 'ব্যক্তির নাম লিখুন।');
-    setAmountError(paisa > 0 ? null : 'লোনের পরিমাণ লিখুন।');
+    setNameError(name ? null : t.nameRequired);
+    setAmountError(paisa > 0 ? null : t.amountRequired);
     if (!name || paisa <= 0) return;
 
     // Keep the stored timestamp unless the day itself was changed.
@@ -89,16 +96,16 @@ export function LoanForm({ existing, initialDirection = 'LENT', onDone }: LoanFo
       updateLoan(existing.id, values);
       onDone();
       showToast({
-        message: 'লোন আপডেট হয়েছে',
-        actionLabel: 'ফিরিয়ে নিন',
+        message: t.updated,
+        actionLabel: common.undo,
         onAction: () => updateLoan(existing.id, previous),
       });
     } else {
       const id = addLoan(values);
       onDone();
       showToast({
-        message: `${lent ? 'ধার দেওয়া' : 'ধার নেওয়া'} যোগ হয়েছে · ${formatTaka(paisa)}`,
-        actionLabel: 'ফিরিয়ে নিন',
+        message: t.added(lent ? strings.activity.lent : strings.activity.borrowed, formatTaka(paisa)),
+        actionLabel: common.undo,
         onAction: () => deleteLoan(id),
       });
     }
@@ -110,8 +117,8 @@ export function LoanForm({ existing, initialDirection = 'LENT', onDone }: LoanFo
     unsettleLoan(existing.id);
     onDone();
     showToast({
-      message: 'লোন আবার চলমান করা হয়েছে',
-      actionLabel: 'ফিরিয়ে নিন',
+      message: t.reopened,
+      actionLabel: common.undo,
       onAction: () => settleLoan(existing.id, settledDate),
     });
   };
@@ -119,17 +126,17 @@ export function LoanForm({ existing, initialDirection = 'LENT', onDone }: LoanFo
   const remove = async () => {
     if (!existing) return;
     const confirmed = await confirmDialog({
-      title: 'লোন ডিলিট করবেন?',
-      message: `${existing.personName} — ${formatTaka(existing.amount)} এর হিসাব মুছে যাবে।`,
-      confirmLabel: 'ডিলিট',
+      title: t.deleteTitle,
+      message: t.deleteMessage(existing.personName, formatTaka(existing.amount)),
+      confirmLabel: common.delete,
       destructive: true,
     });
     if (!confirmed) return;
     deleteLoan(existing.id);
     onDone();
     showToast({
-      message: 'লোন ডিলিট হয়েছে',
-      actionLabel: 'ফিরিয়ে নিন',
+      message: t.deleted,
+      actionLabel: common.undo,
       onAction: () => restoreLoan(existing.id),
     });
   };
@@ -137,22 +144,22 @@ export function LoanForm({ existing, initialDirection = 'LENT', onDone }: LoanFo
   return (
     <>
       <View style={{ gap: 7 }}>
-        <FieldLabel>ধরন</FieldLabel>
-        <Segmented options={DIRECTION_OPTIONS} value={direction} onChange={setDirection} accessibilityLabel="লোনের ধরন" />
+        <FieldLabel>{t.kind}</FieldLabel>
+        <Segmented options={directionOptions} value={direction} onChange={setDirection} accessibilityLabel={t.kindA11y} />
         <Text style={{ fontSize: textSize.sm, lineHeight: 18, color: tokens.muted, marginLeft: 2 }}>
           {lent
-            ? 'আপনি কাউকে টাকা দিয়েছেন — সে আপনাকে ফেরত দেবে (পাওনা)।'
-            : 'আপনি কারো থেকে টাকা নিয়েছেন — আপনাকে ফেরত দিতে হবে (দেনা)। এটা আয় নয়।'}
+            ? t.lentNote
+            : t.borrowedNote}
         </Text>
       </View>
       <Field
-        label={lent ? 'কাকে দিয়েছেন' : 'কার থেকে নিয়েছেন'}
+        label={lent ? t.toWhom : t.fromWhom}
         value={personName}
         onChangeText={(value) => {
           setPersonName(value);
           setNameError(null);
         }}
-        placeholder="যেমন: করিম উদ্দিন"
+        placeholder={t.namePlaceholder}
         autoCapitalize="words"
         maxLength={120}
         autoFocus={!existing}
@@ -171,22 +178,29 @@ export function LoanForm({ existing, initialDirection = 'LENT', onDone }: LoanFo
       <DueDateField
         value={dueDay}
         onChange={setDueDay}
-        hint={lent ? 'কবে ফেরত পাওয়ার কথা — দিলে মনে করিয়ে দেওয়া যাবে।' : 'কবে শোধ করার কথা — দিলে মনে করিয়ে দেওয়া যাবে।'}
+        hint={lent ? t.dueHintLent : t.dueHintBorrowed}
       />
-      <Field label="নোট (ঐচ্ছিক)" value={note} onChangeText={setNote} placeholder="যেমন: জরুরি দরকারে" multiline maxLength={500} />
+      <Field
+        label={strings.ui.noteLabel}
+        value={note}
+        onChangeText={setNote}
+        placeholder={t.notePlaceholder}
+        multiline
+        maxLength={500}
+      />
       {existing && paid > 0 ? (
         <Text style={{ fontSize: textSize.sm, lineHeight: 19, color: tokens.muted, marginLeft: 2 }}>
-          {lent ? 'ফেরত পেয়েছেন' : 'শোধ করেছেন'} <Text style={{ fontWeight: '700', color: tokens.ink }}>{formatTaka(paid)}</Text>
-          {settled ? '' : ` · বাকি ${formatTaka(remaining)}`}
+          {lent ? t.paidLent : t.paidBorrowed} <Text style={{ fontWeight: '700', color: tokens.ink }}>{formatTaka(paid)}</Text>
+          {settled ? '' : t.leftSuffix(formatTaka(remaining))}
         </Text>
       ) : null}
       {settled && legacySettled && existing?.settledDate ? (
         <Text style={{ fontSize: textSize.sm, color: tokens.muted, marginLeft: 2 }}>
-          {existing.direction === 'LENT' ? 'ফেরত পাওয়া গেছে' : 'শোধ করা হয়েছে'} · {fullDateBn(existing.settledDate)}
+          {t.settledOn(existing.direction === 'LENT' ? t.settledLent : t.settledBorrowed, fullDate(existing.settledDate))}
         </Text>
       ) : null}
       <Button
-        label={existing ? 'পরিবর্তন সেভ করুন' : 'লোন সেভ করুন'}
+        label={existing ? common.saveChanges : t.saveNew}
         icon="checkmark"
         fill={lent ? tokens.lentFill : tokens.borrowedFill}
         onPress={save}
@@ -194,15 +208,15 @@ export function LoanForm({ existing, initialDirection = 'LENT', onDone }: LoanFo
       />
       {existing && !legacySettled ? (
         <Button
-          label={hasPayments ? 'পরিশোধের হিসাব' : lent ? 'ফেরত পেয়েছি' : 'শোধ করেছি'}
+          label={hasPayments ? t.payments : lent ? t.recordLent : t.recordBorrowed}
           icon={hasPayments ? 'list-outline' : 'checkmark'}
           variant="secondary"
           onPress={() => setPaymentsOpen(true)}
         />
       ) : null}
-      {legacySettled ? <Button label="আবার চলমান করুন" icon="arrow-undo-outline" variant="secondary" onPress={reopen} /> : null}
+      {legacySettled ? <Button label={t.reopen} icon="arrow-undo-outline" variant="secondary" onPress={reopen} /> : null}
       {existing ? (
-        <Button label="ডিলিট করুন" icon="trash-outline" variant="outline" color={tokens.expense} onPress={() => void remove()} />
+        <Button label={common.deleteButton} icon="trash-outline" variant="outline" color={tokens.expense} onPress={() => void remove()} />
       ) : null}
       <LoanPaymentSheet loan={paymentsOpen && existing ? existing : null} onClose={() => setPaymentsOpen(false)} />
     </>

@@ -4,11 +4,13 @@ import { Text } from '@/components/ui/text';
 import { withAlpha } from '@/constants/tokens';
 import { textSize } from '@/constants/typography';
 import { useSyncStatus } from '@/hooks/use-sync-status';
+import { useStrings } from '@/lib/i18n';
 import { useTheme } from '@/providers/theme-provider';
 
 /** Live sync state pill; tapping it syncs now. `onFill` for use on a filled (green) card. */
 export function SyncBadge({ onFill = false }: { onFill?: boolean }) {
   const { tokens } = useTheme();
+  const t = useStrings().sync;
   const sync = useSyncStatus();
   const toneColor = {
     ok: tokens.income,
@@ -25,8 +27,8 @@ export function SyncBadge({ onFill = false }: { onFill?: boolean }) {
       onPress={canSync ? () => void sync.syncNow() : undefined}
       disabled={!canSync}
       accessibilityRole="button"
-      accessibilityLabel={`সিঙ্ক অবস্থা: ${sync.label}`}
-      accessibilityHint={canSync ? 'এখনই সিঙ্ক করতে ট্যাপ করুন' : undefined}
+      accessibilityLabel={t.badgeA11y(sync.label)}
+      accessibilityHint={canSync ? t.badgeHint : undefined}
       hitSlop={8}
       style={({ pressed }) => ({
         flexDirection: 'row',

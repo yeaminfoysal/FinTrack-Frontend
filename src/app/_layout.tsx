@@ -19,6 +19,7 @@ import { DialogHost } from '@/components/ui/dialog-host';
 import { ToastHost } from '@/components/ui/toast-host';
 import { useReminders } from '@/hooks/use-reminders';
 import { localDigits } from '@/lib/digits';
+import { strings } from '@/lib/i18n';
 import { ThemeProvider } from '@/providers/theme-provider';
 import { useDataStore } from '@/stores/data';
 import { useSessionStore } from '@/stores/session';
@@ -32,7 +33,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 function catchUpRecurring(): void {
   const written = useDataStore.getState().runRecurring();
   if (written > 0) {
-    showToast({ message: `${localDigits(written)}টি নিয়মিত এন্ট্রি যোগ হয়েছে` });
+    showToast({ message: strings().recurringScreen.caughtUp(localDigits(written)) });
   }
 }
 

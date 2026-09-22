@@ -9,22 +9,23 @@ import { Text } from '@/components/ui/text';
 import { withAlpha } from '@/constants/tokens';
 import { textSize } from '@/constants/typography';
 import {
-  BN_WEEKDAYS_SHORT,
   dayKeyToIso,
-  dayMonthBn,
+  dayMonth,
   daysInMonth,
-  fullDateBn,
-  monthLabelBn,
+  fullDate,
+  monthLabel,
   nextMonthKey,
   parseMonthKey,
   prevMonthKey,
   shiftDayKey,
   todayKey,
-  weekdayBn,
+  weekday,
+  weekdayNamesShort,
   type DayKey,
   type MonthKey,
 } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
+import { useStrings } from '@/lib/i18n';
 import { useTheme } from '@/providers/theme-provider';
 
 interface DateFieldProps {
@@ -34,8 +35,11 @@ interface DateFieldProps {
 }
 
 /** Picks a day: "আজ" / "গতকাল" shortcuts plus a calendar. Days after today can't be chosen. */
-export function DateField({ value, onChange, label = 'তারিখ' }: DateFieldProps) {
+export function DateField({ value, onChange, label }: DateFieldProps) {
   const { tokens } = useTheme();
+  const s = useStrings();
+  const t = s.ui;
+  const fieldLabel = label ?? t.dateLabel;
   const [calendarOpen, setCalendarOpen] = useState(false);
   const today = todayKey();
   const yesterday = shiftDayKey(today, -1);
@@ -44,20 +48,20 @@ export function DateField({ value, onChange, label = 'তারিখ' }: DateFi
 
   return (
     <View style={{ gap: 7 }}>
-      <Text style={{ fontSize: textSize.sm, fontWeight: '600', color: tokens.muted, marginLeft: 2 }}>{label}</Text>
-      <View accessibilityRole="radiogroup" accessibilityLabel={label} style={{ flexDirection: 'row', gap: 8 }}>
-        <DayChip label="আজ" selected={value === today} onPress={() => onChange(today)} />
-        <DayChip label="গতকাল" selected={value === yesterday} onPress={() => onChange(yesterday)} />
+      <Text style={{ fontSize: textSize.sm, fontWeight: '600', color: tokens.muted, marginLeft: 2 }}>{fieldLabel}</Text>
+      <View accessibilityRole="radiogroup" accessibilityLabel={fieldLabel} style={{ flexDirection: 'row', gap: 8 }}>
+        <DayChip label={s.common.today} selected={value === today} onPress={() => onChange(today)} />
+        <DayChip label={s.common.yesterday} selected={value === yesterday} onPress={() => onChange(yesterday)} />
         <DayChip
-          label={otherDay ? dayMonthBn(iso) : 'অন্য দিন'}
+          label={otherDay ? dayMonth(iso) : t.otherDay}
           icon="calendar-outline"
           selected={otherDay}
-          hint="ক্যালেন্ডার খুলবে"
+          hint={t.openCalendar}
           onPress={() => setCalendarOpen(true)}
         />
       </View>
       <Text style={{ fontSize: textSize.sm, color: tokens.muted, marginLeft: 2 }}>
-        {fullDateBn(iso)} · {weekdayBn(iso)}
+        {fullDate(iso)} · {weekday(iso)}
       </Text>
       <CalendarSheet
         visible={calendarOpen}
@@ -141,6 +145,7 @@ function CalendarSheet({
     if (visible) setMonth(value.slice(0, 7));
   }
 
+  const t = useStrings();
   const { year, month: monthNumber } = parseMonthKey(month);
   const lead = new Date(year, monthNumber - 1, 1).getDay();
   const cells: (number | null)[] = [
@@ -153,19 +158,19 @@ function CalendarSheet({
   return (
     <BottomSheet visible={visible} onClose={onClose} gap={8}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <IconButton icon="chevron-back" label="আগের মাস" onPress={() => setMonth(prevMonthKey(month))} />
+        <IconButton icon="chevron-back" label={t.ui.prevMonth} onPress={() => setMonth(prevMonthKey(month))} />
         <Text accessibilityRole="header" style={{ fontSize: textSize.lg, fontWeight: '700', color: tokens.ink }}>
-          {monthLabelBn(month)}
+          {monthLabel(month)}
         </Text>
         <IconButton
           icon="chevron-forward"
-          label="পরের মাস"
+          label={t.ui.nextMonth}
           disabled={maxDay != null && month >= maxDay.slice(0, 7)}
           onPress={() => setMonth(nextMonthKey(month))}
         />
       </View>
       <View style={{ flexDirection: 'row' }}>
-        {BN_WEEKDAYS_SHORT.map((name) => (
+        {weekdayNamesShort().map((name) => (
           <Text key={name} style={{ flex: 1, textAlign: 'center', fontSize: textSize.xs, fontWeight: '600', color: tokens.muted }}>
             {name}
           </Text>
@@ -185,7 +190,7 @@ function CalendarSheet({
                 onPress={() => onSelect(day)}
                 disabled={disabled}
                 accessibilityRole="button"
-                accessibilityLabel={fullDateBn(dayKeyToIso(day))}
+                accessibilityLabel={fullDate(dayKeyToIso(day))}
                 accessibilityState={{ selected, disabled }}
                 style={{ flex: 1, height: 44, alignItems: 'center', justifyContent: 'center' }}>
                 <View
@@ -214,7 +219,7 @@ function CalendarSheet({
           })}
         </View>
       ))}
-      <Button label="বাতিল" variant="secondary" onPress={onClose} style={{ marginTop: 4 }} />
+      <Button label={t.common.cancel} variant="secondary" onPress={onClose} style={{ marginTop: 4 }} />
     </BottomSheet>
   );
 }
@@ -226,7 +231,7 @@ function CalendarSheet({
 export function DueDateField({
   value,
   onChange,
-  label = 'ফেরতের তারিখ (ঐচ্ছিক)',
+  label,
   hint,
 }: {
   value: DayKey | null;
@@ -235,6 +240,8 @@ export function DueDateField({
   hint?: string;
 }) {
   const { tokens } = useTheme();
+  const t = useStrings().ui;
+  const fieldLabel = label ?? t.dueDateLabel;
   const [calendarOpen, setCalendarOpen] = useState(false);
   const today = todayKey();
   const inAMonth = shiftDayKey(today, 30);
@@ -242,20 +249,20 @@ export function DueDateField({
 
   return (
     <View style={{ gap: 7 }}>
-      <Text style={{ fontSize: textSize.sm, fontWeight: '600', color: tokens.muted, marginLeft: 2 }}>{label}</Text>
-      <View accessibilityRole="radiogroup" accessibilityLabel={label} style={{ flexDirection: 'row', gap: 8 }}>
-        <DayChip label="নেই" selected={value == null} onPress={() => onChange(null)} />
-        <DayChip label="১ মাস পর" selected={value === inAMonth} onPress={() => onChange(inAMonth)} />
+      <Text style={{ fontSize: textSize.sm, fontWeight: '600', color: tokens.muted, marginLeft: 2 }}>{fieldLabel}</Text>
+      <View accessibilityRole="radiogroup" accessibilityLabel={fieldLabel} style={{ flexDirection: 'row', gap: 8 }}>
+        <DayChip label={t.noDate} selected={value == null} onPress={() => onChange(null)} />
+        <DayChip label={t.inOneMonth} selected={value === inAMonth} onPress={() => onChange(inAMonth)} />
         <DayChip
-          label={picked ? dayMonthBn(dayKeyToIso(value)) : 'তারিখ বাছুন'}
+          label={picked ? dayMonth(dayKeyToIso(value)) : t.pickDate}
           icon="calendar-outline"
           selected={picked}
-          hint="ক্যালেন্ডার খুলবে"
+          hint={t.openCalendar}
           onPress={() => setCalendarOpen(true)}
         />
       </View>
       <Text style={{ fontSize: textSize.sm, lineHeight: 18, color: tokens.muted, marginLeft: 2 }}>
-        {value ? `${fullDateBn(dayKeyToIso(value))} · ${weekdayBn(dayKeyToIso(value))}` : (hint ?? 'তারিখ দিলে সময় হলে মনে করিয়ে দেওয়া যাবে।')}
+        {value ? `${fullDate(dayKeyToIso(value))} · ${weekday(dayKeyToIso(value))}` : (hint ?? t.dueDateHint)}
       </Text>
       <CalendarSheet
         visible={calendarOpen}

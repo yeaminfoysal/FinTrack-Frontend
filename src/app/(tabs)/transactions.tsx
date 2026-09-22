@@ -14,21 +14,26 @@ import { textSize } from '@/constants/typography';
 import { useCategorySet } from '@/hooks/use-categories';
 import { useActivities } from '@/hooks/use-dashboard';
 import { filterActivities, groupByDay, type ActivityType } from '@/lib/activity';
-import { currentMonthKey, monthLabelBn, type MonthKey } from '@/lib/date';
+import { currentMonthKey, monthLabel, type MonthKey } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
+import { useStrings } from '@/lib/i18n';
 import { formatTaka } from '@/lib/money';
 import { useTheme } from '@/providers/theme-provider';
 
-const TYPE_OPTIONS: ChipOption[] = [
-  { key: 'all', label: 'সব' },
-  { key: 'expense', label: 'খরচ', icon: 'arrow-up' },
-  { key: 'income', label: 'আয়', icon: 'arrow-down' },
-  { key: 'loan', label: 'লোন', icon: 'swap-horizontal' },
-];
-
 export default function TransactionsScreen() {
   const { tokens } = useTheme();
+  const strings = useStrings();
+  const t = strings.transactions;
   const router = useRouter();
+  const typeOptions = useMemo<ChipOption[]>(
+    () => [
+      { key: 'all', label: strings.activity.all },
+      { key: 'expense', label: strings.activity.expense, icon: 'arrow-up' },
+      { key: 'income', label: strings.activity.income, icon: 'arrow-down' },
+      { key: 'loan', label: strings.activity.loan, icon: 'swap-horizontal' },
+    ],
+    [strings],
+  );
   const thisMonth = currentMonthKey();
   const months = useMonthsWithData();
   const activities = useActivities();
@@ -36,10 +41,10 @@ export default function TransactionsScreen() {
   // "All" plus every category on offer; a deleted one drops out of the filter but its entries stay.
   const categoryOptions: ChipOption[] = useMemo(
     () => [
-      { key: 'all', label: 'সব ক্যাটাগরি' },
+      { key: 'all', label: t.allCategories },
       ...expenseCategories.options.map((c) => ({ key: c.key, label: c.label, icon: c.iconName })),
     ],
-    [expenseCategories],
+    [expenseCategories, t],
   );
 
   const [monthKey, setMonthKey] = useState<MonthKey>(thisMonth);
@@ -69,42 +74,48 @@ export default function TransactionsScreen() {
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 8, marginBottom: 16 }}>
         <View style={{ flex: 1 }}>
           <Text accessibilityRole="header" numberOfLines={1} style={{ fontSize: textSize.xl, fontWeight: '700', color: tokens.ink }}>
-            লেনদেন
+            {strings.tabs.transactions}
           </Text>
           <Text numberOfLines={1} style={{ fontSize: textSize.sm, color: tokens.muted }}>
-            সব আয়, খরচ ও লোন
+            {t.subtitle}
           </Text>
         </View>
         <MonthSwitcher value={monthKey} onChange={setMonthKey} months={months} />
       </View>
 
-      <SearchField value={query} onChangeText={setQuery} placeholder="নাম, নোট, ক্যাটাগরি বা টাকা খুঁজুন" />
+      <SearchField value={query} onChangeText={setQuery} placeholder={t.searchPlaceholder} />
 
       <View style={{ gap: 8, marginTop: 12 }}>
         <ChipSelect
           scroll
-          options={TYPE_OPTIONS}
+          options={typeOptions}
           value={type}
           onChange={(key) => setType(key as ActivityType)}
-          accessibilityLabel="লেনদেনের ধরন"
+          accessibilityLabel={t.typeA11y}
         />
         {type === 'expense' ? (
-          <ChipSelect scroll options={categoryOptions} value={category} onChange={setCategory} accessibilityLabel="ক্যাটাগরি" />
+          <ChipSelect
+            scroll
+            options={categoryOptions}
+            value={category}
+            onChange={setCategory}
+            accessibilityLabel={strings.expenseForm.categoryLabel}
+          />
         ) : null}
       </View>
 
       <Text accessibilityLiveRegion="polite" style={{ marginTop: 14, paddingHorizontal: 4, fontSize: textSize.sm, color: tokens.muted }}>
-        {searching ? 'সব মাসে' : monthLabelBn(monthKey)} · {localDigits(count)}টি
+        {t.count(searching ? t.allMonths : monthLabel(monthKey), localDigits(count))}
         {income > 0 ? (
           <>
-            {' '}
-            · আয় <Text style={{ color: tokens.income, fontWeight: '600' }}>{formatTaka(income)}</Text>
+            {' · '}
+            {strings.activity.income} <Text style={{ color: tokens.income, fontWeight: '600' }}>{formatTaka(income)}</Text>
           </>
         ) : null}
         {expense > 0 ? (
           <>
-            {' '}
-            · খরচ <Text style={{ color: tokens.expense, fontWeight: '600' }}>{formatTaka(expense)}</Text>
+            {' · '}
+            {strings.activity.expense} <Text style={{ color: tokens.expense, fontWeight: '600' }}>{formatTaka(expense)}</Text>
           </>
         ) : null}
       </Text>
@@ -114,14 +125,14 @@ export default function TransactionsScreen() {
   const empty = (
     <View style={{ marginTop: 14 }}>
       {searching ? (
-        <EmptyState icon="search-outline" title="কিছু পাওয়া যায়নি" message="অন্য শব্দ বা টাকার অঙ্ক দিয়ে খুঁজে দেখুন।" />
+        <EmptyState icon="search-outline" title={t.notFoundTitle} message={t.notFoundMessage} />
       ) : type !== 'all' ? (
-        <EmptyState icon="funnel-outline" title="এই ফিল্টারে কোনো লেনদেন নেই" message="অন্য ধরন বা মাস বেছে দেখুন।" />
+        <EmptyState icon="funnel-outline" title={t.noFilterMatchTitle} message={t.noFilterMatchMessage} />
       ) : (
         <EmptyState
           icon="receipt-outline"
-          title="এই মাসে কোনো লেনদেন নেই"
-          actionLabel={monthKey === thisMonth ? 'এন্ট্রি যোগ করুন' : undefined}
+          title={t.emptyMonthTitle}
+          actionLabel={monthKey === thisMonth ? t.emptyMonthAction : undefined}
           onAction={monthKey === thisMonth ? () => router.push('/add') : undefined}
         />
       )}
@@ -130,7 +141,7 @@ export default function TransactionsScreen() {
 
   return (
     <Screen scroll={false} padded={false}>
-      <PageTitle title="লেনদেন" />
+      <PageTitle title={strings.tabs.transactions} />
       <ActivitySectionList days={days} header={header} empty={empty} />
     </Screen>
   );

@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, type IconName } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { textSize } from '@/constants/typography';
+import { useStrings } from '@/lib/i18n';
 import { useTheme } from '@/providers/theme-provider';
 
 type TabButtonProps = PressableProps & {
@@ -39,13 +40,14 @@ const TabButton = forwardRef<View, TabButtonProps>(function TabButton(
 
 function Fab() {
   const { tokens } = useTheme();
+  const addLabel = useStrings().tabs.addA11y;
   const router = useRouter();
   return (
     <View style={{ width: 64, alignItems: 'center' }}>
       <Pressable
         onPress={() => router.push('/add')}
         accessibilityRole="button"
-        accessibilityLabel="নতুন এন্ট্রি যোগ করুন"
+        accessibilityLabel={addLabel}
         style={({ pressed }) => ({
           width: 56,
           height: 56,
@@ -69,6 +71,7 @@ function Fab() {
 
 export default function TabsLayout() {
   const { tokens } = useTheme();
+  const t = useStrings().tabs;
   const insets = useSafeAreaInsets();
 
   return (
@@ -86,17 +89,17 @@ export default function TabsLayout() {
           alignItems: 'center',
         }}>
         <TabTrigger name="index" href="/" asChild>
-          <TabButton icon="home-outline" activeIcon="home" label="হোম" />
+          <TabButton icon="home-outline" activeIcon="home" label={t.home} />
         </TabTrigger>
         <TabTrigger name="transactions" href="/transactions" asChild>
-          <TabButton icon="receipt-outline" activeIcon="receipt" label="লেনদেন" />
+          <TabButton icon="receipt-outline" activeIcon="receipt" label={t.transactions} />
         </TabTrigger>
         <Fab />
         <TabTrigger name="loans" href="/loans" asChild>
-          <TabButton icon="people-outline" activeIcon="people" label="পাওনা-দেনা" />
+          <TabButton icon="people-outline" activeIcon="people" label={t.loans} />
         </TabTrigger>
         <TabTrigger name="report" href="/report" asChild>
-          <TabButton icon="bar-chart-outline" activeIcon="bar-chart" label="রিপোর্ট" />
+          <TabButton icon="bar-chart-outline" activeIcon="bar-chart" label={t.report} />
         </TabTrigger>
       </TabList>
     </Tabs>

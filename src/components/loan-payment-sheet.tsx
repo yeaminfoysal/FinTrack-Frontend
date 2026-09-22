@@ -16,7 +16,8 @@ import { IconButton } from '@/components/ui/icon-button';
 import { Text } from '@/components/ui/text';
 import { textSize } from '@/constants/typography';
 import { loanOutstanding, paidOnLoan, paymentsOf } from '@/lib/calc';
-import { dayKeyToIso, dayMonthBn, todayKey } from '@/lib/date';
+import { dayKeyToIso, dayMonth, todayKey } from '@/lib/date';
+import { useStrings } from '@/lib/i18n';
 import { amountInputFromPaisa, formatTaka, toPaisa } from '@/lib/money';
 import type { Loan } from '@/lib/types';
 import { useTheme } from '@/providers/theme-provider';
@@ -25,11 +26,12 @@ import { showToast } from '@/stores/ui';
 
 export function LoanPaymentSheet({ loan, onClose }: { loan: Loan | null; onClose: () => void }) {
   const lent = loan?.direction === 'LENT';
+  const t = useStrings().loanPayment;
   return (
     <BottomSheet
       visible={loan != null}
       onClose={onClose}
-      title={lent ? 'ফেরত পেয়েছেন?' : 'শোধ করেছেন?'}
+      title={lent ? t.lentTitle : t.borrowedTitle}
       scroll
       gap={14}>
       {/* Remounts per loan, so an amount typed for one never carries over to another. */}
@@ -40,6 +42,8 @@ export function LoanPaymentSheet({ loan, onClose }: { loan: Loan | null; onClose
 
 function SheetBody({ loan, onClose }: { loan: Loan; onClose: () => void }) {
   const { tokens } = useTheme();
+  const s = useStrings();
+  const t = s.loanPayment;
   const allPayments = useDataStore((s) => s.loanPayments);
   const addLoanPayment = useDataStore((s) => s.addLoanPayment);
   const deleteLoanPayment = useDataStore((s) => s.deleteLoanPayment);
@@ -47,7 +51,7 @@ function SheetBody({ loan, onClose }: { loan: Loan; onClose: () => void }) {
 
   const lent = loan.direction === 'LENT';
   const color = lent ? tokens.lent : tokens.borrowed;
-  const backVerb = lent ? 'ফেরত পেয়েছি' : 'শোধ করেছি';
+  const backVerb = lent ? t.lentVerb : t.borrowedVerb;
 
   const payments = useMemo(() => paymentsOf(allPayments, loan.id), [allPayments, loan.id]);
   const paid = paidOnLoan(loan, allPayments);
@@ -63,11 +67,11 @@ function SheetBody({ loan, onClose }: { loan: Loan; onClose: () => void }) {
 
   const save = () => {
     if (typed <= 0) {
-      setAmountError('কত টাকা এসেছে লিখুন।');
+      setAmountError(t.amountRequired);
       return;
     }
     if (typed > remaining) {
-      setAmountError(`বাকি আছে ${formatTaka(remaining)} — এর বেশি হতে পারে না।`);
+      setAmountError(t.tooMuch(formatTaka(remaining)));
       return;
     }
     const id = addLoanPayment({ loanId: loan.id, amount: typed, date: dayKeyToIso(day), note: note.trim() || null });
@@ -75,9 +79,9 @@ function SheetBody({ loan, onClose }: { loan: Loan; onClose: () => void }) {
     showToast({
       message:
         typed >= remaining
-          ? `${loan.personName} — ${lent ? 'পুরো টাকা ফেরত পাওয়া' : 'পুরো দেনা শোধ'} হয়েছে`
-          : `${formatTaka(typed)} ${backVerb} · বাকি ${formatTaka(remaining - typed)}`,
-      actionLabel: 'ফিরিয়ে নিন',
+          ? t.settledToast(loan.personName, lent ? t.wholeLent : t.wholeBorrowed)
+          : t.partToast(formatTaka(typed), backVerb, formatTaka(remaining - typed)),
+      actionLabel: s.common.undo,
       onAction: () => deleteLoanPayment(id),
     });
   };
@@ -87,8 +91,8 @@ function SheetBody({ loan, onClose }: { loan: Loan; onClose: () => void }) {
     onClose();
     deleteLoanPayment(id);
     showToast({
-      message: `${formatTaka(paisa)}-এর হিসাব মুছে ফেলা হয়েছে`,
-      actionLabel: 'ফিরিয়ে নিন',
+      message: t.removedToast(formatTaka(paisa)),
+      actionLabel: s.common.undo,
       onAction: () => restoreLoanPayment(id),
     });
   };
@@ -100,20 +104,21 @@ function SheetBody({ loan, onClose }: { loan: Loan; onClose: () => void }) {
           <Text numberOfLines={1} style={{ flex: 1, fontSize: textSize.md, fontWeight: '700', color: tokens.ink }}>
             {loan.personName}
           </Text>
-          <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>মোট {formatTaka(loan.amount)}</Text>
+          <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>{t.totalOf(formatTaka(loan.amount))}</Text>
         </View>
         <View
           accessible
-          accessibilityLabel={`${formatTaka(paid)} ${backVerb}, বাকি ${formatTaka(remaining)}`}
+          accessibilityLabel={t.progressA11y(formatTaka(paid), backVerb, formatTaka(remaining))}
           style={{ height: 9, borderRadius: 5, overflow: 'hidden', backgroundColor: tokens.chip }}>
           <View style={{ width: `${paidPct}%`, height: '100%', backgroundColor: color }} />
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 10 }}>
           <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>
-            {backVerb} <Text style={{ fontWeight: '700', color: tokens.ink }}>{formatTaka(paid)}</Text>
+            {t.paidLine(backVerb, formatTaka(paid))}
           </Text>
           <Text style={{ fontSize: textSize.sm, color: tokens.muted }}>
-            বাকি <Text style={{ fontWeight: '700', color }}>{formatTaka(remaining)}</Text>
+            {t.remainingPrefix}
+            <Text style={{ fontWeight: '700', color }}>{formatTaka(remaining)}</Text>
           </Text>
         </View>
       </Card>
@@ -126,13 +131,13 @@ function SheetBody({ loan, onClose }: { loan: Loan; onClose: () => void }) {
               setAmount(value);
               setAmountError(null);
             }}
-            label={lent ? 'কত ফেরত পেলেন' : 'কত শোধ করলেন'}
+            label={lent ? t.howMuchLent : t.howMuchBorrowed}
             error={amountError}
             accent={color}
           />
           {typed !== remaining ? (
             <Button
-              label={`পুরোটা — ${formatTaka(remaining)}`}
+              label={t.whole(formatTaka(remaining))}
               icon="checkmark-done"
               variant="secondary"
               size="sm"
@@ -142,13 +147,13 @@ function SheetBody({ loan, onClose }: { loan: Loan; onClose: () => void }) {
               }}
             />
           ) : null}
-          <DateField value={day} onChange={setDay} label="কবে" />
-          <Field label="নোট (ঐচ্ছিক)" value={note} onChangeText={setNote} placeholder="যেমন: প্রথম কিস্তি" maxLength={500} />
-          <Button label="সেভ করুন" icon="checkmark" fill={lent ? tokens.lentFill : tokens.borrowedFill} onPress={save} />
+          <DateField value={day} onChange={setDay} label={t.when} />
+          <Field label={s.ui.noteLabel} value={note} onChangeText={setNote} placeholder={t.notePlaceholder} maxLength={500} />
+          <Button label={s.common.save} icon="checkmark" fill={lent ? tokens.lentFill : tokens.borrowedFill} onPress={save} />
         </>
       ) : (
         <Text style={{ fontSize: textSize.sm, lineHeight: 20, color: tokens.muted, marginLeft: 2 }}>
-          এই লোনের কিছু বাকি নেই। ভুল হলে নিচের হিসাব থেকে মুছে দিলে লোনটি আবার চলমান হয়ে যাবে।
+          {t.nothingLeft}
         </Text>
       )}
 
@@ -157,7 +162,7 @@ function SheetBody({ loan, onClose }: { loan: Loan; onClose: () => void }) {
           <Text
             accessibilityRole="header"
             style={{ fontSize: textSize.sm, fontWeight: '700', color: tokens.muted, marginLeft: 2 }}>
-            আগের হিসাব
+            {t.history}
           </Text>
           {payments.map((p) => (
             <View
@@ -176,7 +181,7 @@ function SheetBody({ loan, onClose }: { loan: Loan; onClose: () => void }) {
               }}>
               <View style={{ flex: 1 }}>
                 <Text numberOfLines={1} style={{ fontSize: textSize.md, fontWeight: '600', color: tokens.ink }}>
-                  {dayMonthBn(p.date)}
+                  {dayMonth(p.date)}
                 </Text>
                 {p.note ? (
                   <Text numberOfLines={1} style={{ fontSize: textSize.sm, color: tokens.muted }}>
@@ -187,7 +192,7 @@ function SheetBody({ loan, onClose }: { loan: Loan; onClose: () => void }) {
               <AmountText paisa={p.amount} weight="700" color={color} />
               <IconButton
                 icon="trash-outline"
-                label={`${formatTaka(p.amount)}-এর হিসাব মুছুন`}
+                label={t.removeEntry(formatTaka(p.amount))}
                 variant="plain"
                 color={tokens.expense}
                 onPress={() => removePayment(p.id, p.amount)}

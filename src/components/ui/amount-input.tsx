@@ -5,6 +5,7 @@ import { useScrollFocusedIntoView } from '@/components/ui/keyboard-scroll-view';
 import { Text } from '@/components/ui/text';
 import { FONT_FAMILY } from '@/constants/fonts';
 import { textSize } from '@/constants/typography';
+import { useStrings } from '@/lib/i18n';
 import { formatTaka, sanitizeAmountInput, toPaisa } from '@/lib/money';
 import { useTheme } from '@/providers/theme-provider';
 
@@ -19,15 +20,16 @@ interface AmountInputProps {
 }
 
 /** Large amount entry for the add/edit forms. Accepts Bangla digits and at most two decimals. */
-export function AmountInput({ value, onChangeText, label = 'পরিমাণ', error, autoFocus, accent }: AmountInputProps) {
+export function AmountInput({ value, onChangeText, label, error, autoFocus, accent }: AmountInputProps) {
   const { tokens } = useTheme();
+  const amountLabel = useStrings().ui.amount;
   const [focused, setFocused] = useState(false);
   const scrollIntoView = useScrollFocusedIntoView();
   const paisa = toPaisa(value || '0');
 
   return (
     <View style={{ gap: 7 }}>
-      <Text style={{ fontSize: textSize.sm, fontWeight: '600', color: tokens.muted, marginLeft: 2 }}>{label}</Text>
+      <Text style={{ fontSize: textSize.sm, fontWeight: '600', color: tokens.muted, marginLeft: 2 }}>{label ?? amountLabel}</Text>
       <View
         style={{
           flexDirection: 'row',

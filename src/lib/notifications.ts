@@ -16,6 +16,7 @@ import { Platform } from 'react-native';
 import { loanOutstanding } from '@/lib/calc';
 import { dayKeyOf, daysBetween, shiftDayKey, todayKey, type DayKey } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
+import { strings } from '@/lib/i18n';
 import { formatTaka } from '@/lib/money';
 import type { Loan, LoanPayment } from '@/lib/types';
 
@@ -113,7 +114,7 @@ export async function ensureNotificationPermission(): Promise<boolean> {
 async function ensureChannel(module: NotificationsModule): Promise<void> {
   if (Platform.OS !== 'android') return;
   await module.setNotificationChannelAsync('reminders', {
-    name: 'রিমাইন্ডার',
+    name: strings().notifications.channelName,
     importance: module.AndroidImportance.DEFAULT,
     lockscreenVisibility: module.AndroidNotificationVisibility.PRIVATE,
   });
@@ -143,6 +144,7 @@ export function planDailyReminders(
   now: Date = new Date(),
 ): Planned[] {
   if (!settings.dailyEnabled) return [];
+  const t = strings().notifications;
   const planned: Planned[] = [];
   for (let i = 0; i < DAILY_AHEAD; i++) {
     const day = shiftDayKey(today, i);
@@ -151,8 +153,8 @@ export function planDailyReminders(
     if (at.getTime() <= now.getTime()) continue;
     planned.push({
       at,
-      title: 'আজকের খরচ লিখেছেন?',
-      body: 'দিন শেষ হওয়ার আগে আজকের খরচগুলো লিখে রাখুন — পরে আর মনে থাকে না।',
+      title: t.dailyTitle,
+      body: t.dailyBody,
     });
   }
   return planned;
@@ -167,6 +169,7 @@ export function planLoanReminders(
   now: Date = new Date(),
 ): Planned[] {
   if (!settings.loanDueEnabled) return [];
+  const t = strings().notifications;
   return loans
     .filter((l) => !l.isDeleted && l.dueDate != null && loanOutstanding(l, payments) > 0)
     .map((loan) => ({ loan, day: dayKeyOf(loan.dueDate as string) }))
@@ -175,11 +178,11 @@ export function planLoanReminders(
     .slice(0, MAX_LOAN_REMINDERS)
     .map(({ loan, day }) => ({
       at: timeOn(day, LOAN_REMINDER_HOUR * 60),
-      title: loan.direction === 'LENT' ? 'আজ টাকা ফেরত পাওয়ার কথা' : 'আজ টাকা শোধ করার কথা',
+      title: loan.direction === 'LENT' ? t.loanLentTitle : t.loanBorrowedTitle,
       body:
         loan.direction === 'LENT'
-          ? `${loan.personName} — ${formatTaka(loanOutstanding(loan, payments))} ফেরত পাওয়ার তারিখ আজ।`
-          : `${loan.personName} — ${formatTaka(loanOutstanding(loan, payments))} শোধ করার তারিখ আজ।`,
+          ? t.loanLentBody(loan.personName, formatTaka(loanOutstanding(loan, payments)))
+          : t.loanBorrowedBody(loan.personName, formatTaka(loanOutstanding(loan, payments))),
     }))
     .filter((p) => p.at.getTime() > now.getTime());
 }
@@ -231,12 +234,10 @@ export async function rescheduleReminders(input: {
   }
 }
 
-/** "রাত ৯:০০" — how a reminder time reads in the settings. */
-export function timeLabelBn(minutes: number): string {
+/** "রাত ৯:০০" · "9:00 PM" — how a reminder time reads in the settings. */
+export function timeLabel(minutes: number): string {
   const hour24 = Math.floor(minutes / 60);
   const minute = minutes % 60;
-  const part =
-    hour24 < 4 ? 'রাত' : hour24 < 12 ? 'সকাল' : hour24 < 16 ? 'দুপুর' : hour24 < 18 ? 'বিকাল' : hour24 < 20 ? 'সন্ধ্যা' : 'রাত';
   const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
-  return `${part} ${localDigits(hour12)}:${localDigits(String(minute).padStart(2, '0'))}`;
+  return strings().notifications.timeLabel(localDigits(hour12), localDigits(String(minute).padStart(2, '0')), hour24);
 }

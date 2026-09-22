@@ -2,8 +2,9 @@
  * When a loan is expected back, as the UI and the reminders both need it.
  * Pure — no React, no store.
  */
-import { dayKeyOf, daysBetween, dayMonthBn, dayKeyToIso, todayKey, type DayKey } from '@/lib/date';
+import { dayKeyOf, daysBetween, dayMonth, dayKeyToIso, todayKey, type DayKey } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
+import { strings } from '@/lib/i18n';
 import type { Loan } from '@/lib/types';
 
 export interface LoanDue {
@@ -25,9 +26,10 @@ export function loanDue(loan: Loan, settled: boolean, today: DayKey = todayKey()
 }
 
 /** "৩ দিন দেরি" · "আজ ফেরতের দিন" · "৫ দিনে" · "12 অক্টোবর". */
-export function dueLabelBn(due: LoanDue): string {
-  if (due.daysLeft === 0) return 'আজ ফেরতের দিন';
-  if (due.overdue) return `${localDigits(-due.daysLeft)} দিন দেরি`;
-  if (due.soon) return `${localDigits(due.daysLeft)} দিনে ফেরত`;
-  return `${dayMonthBn(dayKeyToIso(due.day))}-এ ফেরত`;
+export function dueLabel(due: LoanDue): string {
+  const t = strings().loanDue;
+  if (due.daysLeft === 0) return t.dueToday;
+  if (due.overdue) return t.overdue(localDigits(-due.daysLeft));
+  if (due.soon) return t.inDays(localDigits(due.daysLeft));
+  return t.onDate(dayMonth(dayKeyToIso(due.day)));
 }

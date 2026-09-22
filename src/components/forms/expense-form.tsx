@@ -10,6 +10,7 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { DEFAULT_EXPENSE_CATEGORY } from '@/constants/categories';
 import { useCategorySet } from '@/hooks/use-categories';
 import { dayKeyOf, dayKeyToIso, todayKey } from '@/lib/date';
+import { useStrings } from '@/lib/i18n';
 import { amountInputFromPaisa, formatTaka, toPaisa } from '@/lib/money';
 import type { Expense } from '@/lib/types';
 import { useTheme } from '@/providers/theme-provider';
@@ -25,6 +26,9 @@ interface ExpenseFormProps {
 
 export function ExpenseForm({ existing, onDone }: ExpenseFormProps) {
   const { tokens } = useTheme();
+  const strings = useStrings();
+  const t = strings.expenseForm;
+  const common = strings.common;
   const categories = useCategorySet('EXPENSE');
   const addExpense = useDataStore((s) => s.addExpense);
   const updateExpense = useDataStore((s) => s.updateExpense);
@@ -57,7 +61,7 @@ export function ExpenseForm({ existing, onDone }: ExpenseFormProps) {
   const save = () => {
     const paisa = toPaisa(amount);
     if (paisa <= 0) {
-      setAmountError('খরচের পরিমাণ লিখুন।');
+      setAmountError(t.amountRequired);
       return;
     }
     // Keep the stored timestamp unless the day itself was changed.
@@ -74,16 +78,16 @@ export function ExpenseForm({ existing, onDone }: ExpenseFormProps) {
       updateExpense(existing.id, values);
       onDone();
       showToast({
-        message: 'খরচ আপডেট হয়েছে',
-        actionLabel: 'ফিরিয়ে নিন',
+        message: t.updated,
+        actionLabel: common.undo,
         onAction: () => updateExpense(existing.id, previous),
       });
     } else {
       const id = addExpense(values);
       onDone();
       showToast({
-        message: `খরচ যোগ হয়েছে · ${formatTaka(paisa)}`,
-        actionLabel: 'ফিরিয়ে নিন',
+        message: t.added(formatTaka(paisa)),
+        actionLabel: common.undo,
         onAction: () => deleteExpense(id),
       });
     }
@@ -92,17 +96,17 @@ export function ExpenseForm({ existing, onDone }: ExpenseFormProps) {
   const remove = async () => {
     if (!existing) return;
     const confirmed = await confirmDialog({
-      title: 'খরচ ডিলিট করবেন?',
-      message: 'এই খরচটি মুছে যাবে এবং মাসের হিসাব আবার গণনা হবে।',
-      confirmLabel: 'ডিলিট',
+      title: t.deleteTitle,
+      message: t.deleteMessage,
+      confirmLabel: common.delete,
       destructive: true,
     });
     if (!confirmed) return;
     deleteExpense(existing.id);
     onDone();
     showToast({
-      message: 'খরচ ডিলিট হয়েছে',
-      actionLabel: 'ফিরিয়ে নিন',
+      message: t.deleted,
+      actionLabel: common.undo,
       onAction: () => restoreExpense(existing.id),
     });
   };
@@ -120,28 +124,28 @@ export function ExpenseForm({ existing, onDone }: ExpenseFormProps) {
         accent={tokens.expense}
       />
       <View style={{ gap: 7 }}>
-        <FieldLabel>ক্যাটাগরি</FieldLabel>
+        <FieldLabel>{t.categoryLabel}</FieldLabel>
         <ChipSelect
           options={categoryOptions}
           value={category}
           onChange={setCategory}
-          accessibilityLabel="ক্যাটাগরি"
+          accessibilityLabel={t.categoryLabel}
           onAdd={() => setAddingCategory(true)}
-          addLabel="নতুন ক্যাটাগরি"
+          addLabel={t.addCategory}
         />
       </View>
       <DateField value={day} onChange={setDay} />
       <Field
-        label="বিবরণ (ঐচ্ছিক)"
+        label={t.descriptionLabel}
         value={description}
         onChangeText={setDescription}
-        placeholder="যেমন: বাজার ও খাবার"
+        placeholder={t.descriptionPlaceholder}
         multiline
         maxLength={500}
       />
-      <Button label={existing ? 'পরিবর্তন সেভ করুন' : 'খরচ সেভ করুন'} icon="checkmark" onPress={save} style={{ marginTop: 4 }} />
+      <Button label={existing ? common.saveChanges : t.saveNew} icon="checkmark" onPress={save} style={{ marginTop: 4 }} />
       {existing ? (
-        <Button label="ডিলিট করুন" icon="trash-outline" variant="outline" color={tokens.expense} onPress={() => void remove()} />
+        <Button label={common.deleteButton} icon="trash-outline" variant="outline" color={tokens.expense} onPress={() => void remove()} />
       ) : null}
       {addingCategory ? (
         <CategorySheet

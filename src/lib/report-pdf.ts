@@ -9,6 +9,7 @@ import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
 
 import type { MonthKey } from '@/lib/date';
+import { strings } from '@/lib/i18n';
 
 // A4 in expo-print's page unit (72 PPI).
 const A4 = { width: 595, height: 842 };
@@ -22,7 +23,7 @@ export const reportFileName = (monthKey: MonthKey) => `FinTrack-Report-${monthKe
  */
 async function renderPdfBase64(html: string): Promise<string> {
   const { base64 } = await Print.printToFileAsync({ html, base64: true, ...A4 });
-  if (!base64) throw new Error('PDF তৈরি হয়নি, আবার চেষ্টা করুন।');
+  if (!base64) throw new Error(strings().pdf.renderFailed);
   return base64;
 }
 
@@ -33,7 +34,7 @@ export async function shareReportPdf(html: string, monthKey: MonthKey): Promise<
     await Print.printAsync({ html });
     return;
   }
-  if (!(await Sharing.isAvailableAsync())) throw new Error('এই ডিভাইসে শেয়ার করার সুবিধা নেই।');
+  if (!(await Sharing.isAvailableAsync())) throw new Error(strings().pdf.sharingUnavailable);
   // A readable file name in our own cache — share targets show it.
   const file = new File(Paths.cache, reportFileName(monthKey));
   if (!file.exists) file.create();

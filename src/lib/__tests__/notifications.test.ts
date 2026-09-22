@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { planDailyReminders, planLoanReminders, timeLabelBn, type ReminderSettings } from '@/lib/notifications';
+import { planDailyReminders, planLoanReminders, timeLabel, type ReminderSettings } from '@/lib/notifications';
 import { at, loan, loanPayment, tk } from '@/test/factories';
 
 const ON: ReminderSettings = { dailyEnabled: true, dailyMinutes: 21 * 60, loanDueEnabled: true };
@@ -63,10 +63,10 @@ describe('planLoanReminders', () => {
   });
 });
 
-describe('timeLabelBn', () => {
+describe('timeLabel', () => {
   it('names the part of the day', () => {
-    expect(timeLabelBn(18 * 60)).toContain('সন্ধ্যা');
-    expect(timeLabelBn(21 * 60)).toContain('রাত');
-    expect(timeLabelBn(9 * 60)).toContain('সকাল');
+    expect(timeLabel(18 * 60)).toContain('সন্ধ্যা');
+    expect(timeLabel(21 * 60)).toContain('রাত');
+    expect(timeLabel(9 * 60)).toContain('সকাল');
   });
 });

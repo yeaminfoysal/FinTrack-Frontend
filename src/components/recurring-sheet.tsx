@@ -4,7 +4,7 @@
  * Mount it only while it is open (or give it a key): the fields start from `existing`
  * and are not reset when `visible` flips.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
 import { AmountInput } from '@/components/ui/amount-input';
@@ -17,31 +17,19 @@ import { Text } from '@/components/ui/text';
 import { DEFAULT_EXPENSE_CATEGORY, DEFAULT_INCOME_SOURCE } from '@/constants/categories';
 import { textSize } from '@/constants/typography';
 import { useCategorySet } from '@/hooks/use-categories';
-import { BN_WEEKDAYS_SHORT } from '@/lib/date';
+import { weekdayNamesShort } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
+import { useStrings } from '@/lib/i18n';
 import { amountInputFromPaisa, formatTaka, toPaisa } from '@/lib/money';
 import type { CategoryKind, Recurring, RecurringFrequency } from '@/lib/types';
 import { useTheme } from '@/providers/theme-provider';
 import { useDataStore } from '@/stores/data';
 import { showToast } from '@/stores/ui';
 
-const KIND_OPTIONS: { value: CategoryKind; label: string }[] = [
-  { value: 'EXPENSE', label: 'খরচ' },
-  { value: 'INCOME', label: 'আয়' },
-];
-
-const FREQUENCY_OPTIONS: { value: RecurringFrequency; label: string }[] = [
-  { value: 'MONTHLY', label: 'প্রতি মাসে' },
-  { value: 'WEEKLY', label: 'প্রতি সপ্তাহে' },
-  { value: 'DAILY', label: 'প্রতিদিন' },
-];
-
 const DAY_OF_MONTH_OPTIONS: ChipOption[] = Array.from({ length: 31 }, (_, i) => ({
   key: String(i + 1),
   label: `${localDigits(i + 1)}`,
 }));
-
-const WEEKDAY_OPTIONS: ChipOption[] = BN_WEEKDAYS_SHORT.map((label, index) => ({ key: String(index), label }));
 
 interface RecurringSheetProps {
   visible: boolean;
@@ -54,6 +42,26 @@ interface RecurringSheetProps {
 
 export function RecurringSheet({ visible, onClose, existing, onDelete }: RecurringSheetProps) {
   const { tokens } = useTheme();
+  const s = useStrings();
+  const t = s.recurringSheet;
+  // Rebuilt when the language changes, so the chips and segments follow it.
+  const kindOptions = useMemo<{ value: CategoryKind; label: string }[]>(
+    () => [
+      { value: 'EXPENSE', label: s.activity.expense },
+      { value: 'INCOME', label: s.activity.income },
+    ],
+    [s],
+  );
+  const frequencyOptions = useMemo<{ value: RecurringFrequency; label: string }[]>(
+    () => [
+      { value: 'MONTHLY', label: t.monthly },
+      { value: 'WEEKLY', label: t.weekly },
+      { value: 'DAILY', label: t.daily },
+    ],
+    [t],
+  );
+  // Cheap enough to rebuild each render, and it has to follow the language.
+  const weekdayOptions: ChipOption[] = weekdayNamesShort().map((label, index) => ({ key: String(index), label }));
   const addRecurring = useDataStore((s) => s.addRecurring);
   const updateRecurring = useDataStore((s) => s.updateRecurring);
 
@@ -81,16 +89,16 @@ export function RecurringSheet({ visible, onClose, existing, onDelete }: Recurri
   const save = () => {
     const paisa = toPaisa(amount);
     if (paisa <= 0) {
-      setAmountError('কত টাকা লিখুন।');
+      setAmountError(t.amountRequired);
       return;
     }
     const values = { kind, amount: paisa, category, frequency, anchor, note: note.trim() || null };
     if (existing) {
       updateRecurring(existing.id, values);
-      showToast({ message: 'নিয়মিত লেনদেন আপডেট হয়েছে' });
+      showToast({ message: t.updated });
     } else {
       addRecurring(values);
-      showToast({ message: `নিয়মিত ${kind === 'EXPENSE' ? 'খরচ' : 'আয়'} যোগ হয়েছে · ${formatTaka(paisa)}` });
+      showToast({ message: t.added(kind === 'EXPENSE' ? s.activity.expense : s.activity.income, formatTaka(paisa)) });
     }
     onClose();
   };
@@ -99,14 +107,14 @@ export function RecurringSheet({ visible, onClose, existing, onDelete }: Recurri
     <BottomSheet
       visible={visible}
       onClose={onClose}
-      title={existing ? 'নিয়মিত লেনদেন বদলান' : 'নতুন নিয়মিত লেনদেন'}
+      title={existing ? t.editTitle : t.newTitle}
       scroll
       gap={14}>
       <Text style={{ fontSize: textSize.sm, lineHeight: 19, color: tokens.muted, marginTop: -6 }}>
-        বাসা ভাড়া, বেতন, ইন্টারনেট বিল — যা প্রতিবার একই রকম। সময় হলে অ্যাপ নিজেই এন্ট্রিটা লিখে দেবে।
+        {t.intro}
       </Text>
 
-      <Segmented options={KIND_OPTIONS} value={kind} onChange={switchKind} accessibilityLabel="ধরন" />
+      <Segmented options={kindOptions} value={kind} onChange={switchKind} accessibilityLabel={t.kind} />
       <AmountInput
         value={amount}
         onChangeText={(value) => {
@@ -118,33 +126,33 @@ export function RecurringSheet({ visible, onClose, existing, onDelete }: Recurri
       />
 
       <View style={{ gap: 7 }}>
-        <FieldLabel>{kind === 'EXPENSE' ? 'ক্যাটাগরি' : 'উৎস'}</FieldLabel>
+        <FieldLabel>{kind === 'EXPENSE' ? t.category : t.source}</FieldLabel>
         <ChipSelect
           options={categoryOptions}
           value={category}
           onChange={setCategory}
-          accessibilityLabel={kind === 'EXPENSE' ? 'ক্যাটাগরি' : 'উৎস'}
+          accessibilityLabel={kind === 'EXPENSE' ? t.category : t.source}
         />
       </View>
 
       <View style={{ gap: 7 }}>
-        <FieldLabel>কত ঘন ঘন</FieldLabel>
-        <Segmented options={FREQUENCY_OPTIONS} value={frequency} onChange={setFrequency} accessibilityLabel="কত ঘন ঘন" />
+        <FieldLabel>{t.howOften}</FieldLabel>
+        <Segmented options={frequencyOptions} value={frequency} onChange={setFrequency} accessibilityLabel={t.howOften} />
       </View>
 
       {frequency === 'MONTHLY' ? (
         <View style={{ gap: 7 }}>
-          <FieldLabel>মাসের কত তারিখে</FieldLabel>
+          <FieldLabel>{t.dayOfMonth}</FieldLabel>
           <ChipSelect
             scroll
             options={DAY_OF_MONTH_OPTIONS}
             value={String(anchor)}
             onChange={(key) => setAnchor(Number(key))}
-            accessibilityLabel="মাসের তারিখ"
+            accessibilityLabel={t.dayOfMonthA11y}
           />
           {anchor > 28 ? (
             <Text style={{ fontSize: textSize.sm, lineHeight: 18, color: tokens.muted, marginLeft: 2 }}>
-              যে মাসে {localDigits(anchor)} তারিখ নেই, সে মাসে শেষ দিনে হবে।
+              {t.shortMonthNote(localDigits(anchor))}
             </Text>
           ) : null}
         </View>
@@ -152,29 +160,29 @@ export function RecurringSheet({ visible, onClose, existing, onDelete }: Recurri
 
       {frequency === 'WEEKLY' ? (
         <View style={{ gap: 7 }}>
-          <FieldLabel>সপ্তাহের কোন দিন</FieldLabel>
+          <FieldLabel>{t.weekday}</FieldLabel>
           <ChipSelect
             scroll
-            options={WEEKDAY_OPTIONS}
+            options={weekdayOptions}
             value={String(anchor)}
             onChange={(key) => setAnchor(Number(key))}
-            accessibilityLabel="সপ্তাহের দিন"
+            accessibilityLabel={t.weekdayA11y}
           />
         </View>
       ) : null}
 
       <Field
-        label="নাম / বিবরণ (ঐচ্ছিক)"
+        label={t.noteLabel}
         value={note}
         onChangeText={setNote}
-        placeholder={kind === 'EXPENSE' ? 'যেমন: বাসা ভাড়া' : 'যেমন: বেতন'}
+        placeholder={kind === 'EXPENSE' ? t.expensePlaceholder : t.incomePlaceholder}
         maxLength={500}
       />
 
-      <Button label={existing ? 'পরিবর্তন সেভ করুন' : 'সেভ করুন'} icon="checkmark" onPress={save} />
+      <Button label={existing ? s.common.saveChanges : s.common.save} icon="checkmark" onPress={save} />
       {onDelete ? (
         <Button
-          label="মুছে ফেলুন"
+          label={t.deleteButton}
           icon="trash-outline"
           variant="outline"
           color={tokens.expense}

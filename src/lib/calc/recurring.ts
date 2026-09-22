@@ -6,8 +6,9 @@
  * the same idea as the month-close chain, and each occurrence gets an id derived from
  * the rule and its day — so the same occurrence generated on two devices is one row.
  */
-import { BN_WEEKDAYS, dayKeyOf, daysBetween, dayKeyToIso, shiftDayKey, todayKey, type DayKey } from '@/lib/date';
+import { dayKeyOf, daysBetween, dayKeyToIso, shiftDayKey, todayKey, weekdayNames, type DayKey } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
+import { strings } from '@/lib/i18n';
 import type { Recurring } from '@/lib/types';
 import { uuidFrom } from '@/lib/uuid';
 
@@ -60,8 +61,9 @@ export function occurrenceId(rule: Recurring, day: DayKey): string {
 }
 
 /** "প্রতি মাসের ১ তারিখে" · "প্রতি শুক্রবার" · "প্রতিদিন" — how a rule repeats, in one phrase. */
-export function frequencyLabelBn(rule: Pick<Recurring, 'frequency' | 'anchor'>): string {
-  if (rule.frequency === 'DAILY') return 'প্রতিদিন';
-  if (rule.frequency === 'WEEKLY') return `প্রতি ${BN_WEEKDAYS[rule.anchor] ?? ''}`;
-  return `প্রতি মাসের ${localDigits(rule.anchor)} তারিখে`;
+export function frequencyLabel(rule: Pick<Recurring, 'frequency' | 'anchor'>): string {
+  const t = strings().recurring;
+  if (rule.frequency === 'DAILY') return t.daily;
+  if (rule.frequency === 'WEEKLY') return t.weeklyOn(weekdayNames()[rule.anchor] ?? '');
+  return t.monthlyOn(localDigits(rule.anchor));
 }

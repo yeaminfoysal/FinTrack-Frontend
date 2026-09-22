@@ -10,6 +10,7 @@
  *   Net Worth   = 74,200 + 12,000 − 20,000 = 66,200
  */
 import { currentMonthKey, parseMonthKey, prevMonthKey } from '@/lib/date';
+import { strings } from '@/lib/i18n';
 import type {
   Category,
   Expense,
@@ -52,35 +53,40 @@ export interface SeedData {
   profile: UserProfile;
 }
 
-/** Demo account identity. example.com is reserved for documentation, so it can never be a real inbox. */
-export const DEMO_NAME = 'রাফিদ হাসান';
+/**
+ * Demo account identity. example.com is reserved for documentation, so it can never be a
+ * real inbox. The name is a function because it is read in whichever language is set when
+ * the demo is seeded.
+ */
+export const demoName = (): string => strings().demo.name;
 export const DEMO_EMAIL = 'rafid.hasan@example.com';
 
 export function buildSeed(email = DEMO_EMAIL): SeedData {
+  const d = strings().demo;
   const curKey = currentMonthKey();
   const { year, month } = parseMonthKey(curKey);
 
   // Two categories the demo user added, so the demo shows what a custom one looks like.
   // An entry stores the category's id, so they are built first.
   const categories: Category[] = [
-    { ...base(iso(year, month, 1)), kind: 'EXPENSE', label: 'মোবাইল রিচার্জ', icon: '📱', iconName: 'phone-portrait-outline' },
-    { ...base(iso(year, month, 1)), kind: 'INCOME', label: 'টিউশন', icon: '📖', iconName: 'book-outline' },
+    { ...base(iso(year, month, 1)), kind: 'EXPENSE', label: d.categoryRecharge, icon: '📱', iconName: 'phone-portrait-outline' },
+    { ...base(iso(year, month, 1)), kind: 'INCOME', label: d.categoryTuition, icon: '📖', iconName: 'book-outline' },
   ];
   const [rechargeCategory] = categories;
 
   const incomes: Income[] = [
-    { ...base(iso(year, month, 1)), amount: tk(55000), source: 'salary', date: iso(year, month, 1), note: 'বেতন — এই মাস' },
-    { ...base(iso(year, month, 8)), amount: tk(8000), source: 'freelance', date: iso(year, month, 8), note: 'ফ্রিল্যান্স প্রজেক্ট' },
+    { ...base(iso(year, month, 1)), amount: tk(55000), source: 'salary', date: iso(year, month, 1), note: d.noteSalaryThisMonth },
+    { ...base(iso(year, month, 8)), amount: tk(8000), source: 'freelance', date: iso(year, month, 8), note: d.noteFreelance },
   ];
 
   const expenses: Expense[] = [
-    { ...base(iso(year, month, 3)), amount: tk(3450), category: 'education', date: iso(year, month, 3), description: 'কোর্স ফি' },
-    { ...base(iso(year, month, 5)), amount: tk(3200), category: 'utilities', date: iso(year, month, 5), description: 'বিদ্যুৎ ও ইন্টারনেট বিল' },
-    { ...base(iso(year, month, 9)), amount: tk(6500), category: 'medical', date: iso(year, month, 9), description: 'ডাক্তার ও ঔষধ' },
-    { ...base(iso(year, month, 12)), amount: tk(12000), category: 'shopping', date: iso(year, month, 12), description: 'নতুন জামা' },
-    { ...base(iso(year, month, 18)), amount: tk(4200), category: 'food', date: iso(year, month, 18), description: 'বাজার ও খাবার' },
-    { ...base(iso(year, month, 20)), amount: tk(1150), category: 'transport', date: iso(year, month, 20), description: 'যাতায়াত' },
-    { ...base(iso(year, month, 22)), amount: tk(8000), category: rechargeCategory.id, date: iso(year, month, 22), description: 'মোবাইল রিচার্জ ও অন্যান্য' },
+    { ...base(iso(year, month, 3)), amount: tk(3450), category: 'education', date: iso(year, month, 3), description: d.expenseCourseFee },
+    { ...base(iso(year, month, 5)), amount: tk(3200), category: 'utilities', date: iso(year, month, 5), description: d.expenseUtilities },
+    { ...base(iso(year, month, 9)), amount: tk(6500), category: 'medical', date: iso(year, month, 9), description: d.expenseMedical },
+    { ...base(iso(year, month, 12)), amount: tk(12000), category: 'shopping', date: iso(year, month, 12), description: d.expenseClothes },
+    { ...base(iso(year, month, 18)), amount: tk(4200), category: 'food', date: iso(year, month, 18), description: d.expenseGroceries },
+    { ...base(iso(year, month, 20)), amount: tk(1150), category: 'transport', date: iso(year, month, 20), description: d.expenseTransport },
+    { ...base(iso(year, month, 22)), amount: tk(8000), category: rechargeCategory.id, date: iso(year, month, 22), description: d.expenseRecharge },
   ];
 
 
@@ -88,15 +94,15 @@ export function buildSeed(email = DEMO_EMAIL): SeedData {
   // the old way (status only) — together they cover every shape a loan can be in.
   // Outstanding lent stays ৳12,000: (9,000 − 4,000) + 7,000.
   const loans: Loan[] = [
-    { ...base(iso(year, month, 15)), direction: 'LENT', personName: 'করিম উদ্দিন', amount: tk(9000), date: iso(year, month, 15), note: 'জরুরি দরকারে', status: 'ACTIVE', settledDate: null, dueDate: iso(year, month + 1, 5) },
-    { ...base(iso(year, month, 10)), direction: 'LENT', personName: 'সাব্বির আহমেদ', amount: tk(7000), date: iso(year, month, 10), note: 'বই কেনার জন্য', status: 'ACTIVE', settledDate: null, dueDate: iso(year, month, 20) },
-    { ...base(iso(year, month, 2)), direction: 'LENT', personName: 'তানিয়া রহমান', amount: tk(3000), date: iso(year, month, 2), note: null, status: 'SETTLED', settledDate: iso(year, month, 20), dueDate: null },
-    { ...base(iso(year, month, 5)), direction: 'BORROWED', personName: 'বড় ভাই (শাহীন)', amount: tk(20000), date: iso(year, month, 5), note: 'ল্যাপটপ কিনতে', status: 'ACTIVE', settledDate: null, dueDate: iso(year, month + 1, 25) },
+    { ...base(iso(year, month, 15)), direction: 'LENT', personName: d.personKarim, amount: tk(9000), date: iso(year, month, 15), note: d.loanUrgent, status: 'ACTIVE', settledDate: null, dueDate: iso(year, month + 1, 5) },
+    { ...base(iso(year, month, 10)), direction: 'LENT', personName: d.personSabbir, amount: tk(7000), date: iso(year, month, 10), note: d.loanBooks, status: 'ACTIVE', settledDate: null, dueDate: iso(year, month, 20) },
+    { ...base(iso(year, month, 2)), direction: 'LENT', personName: d.personTania, amount: tk(3000), date: iso(year, month, 2), note: null, status: 'SETTLED', settledDate: iso(year, month, 20), dueDate: null },
+    { ...base(iso(year, month, 5)), direction: 'BORROWED', personName: d.personShaheen, amount: tk(20000), date: iso(year, month, 5), note: d.loanLaptop, status: 'ACTIVE', settledDate: null, dueDate: iso(year, month + 1, 25) },
   ];
 
   const [karim] = loans;
   const loanPayments: LoanPayment[] = [
-    { ...base(iso(year, month, 21)), loanId: karim.id, amount: tk(4000), date: iso(year, month, 21), note: 'প্রথম কিস্তি' },
+    { ...base(iso(year, month, 21)), loanId: karim.id, amount: tk(4000), date: iso(year, month, 21), note: d.paymentFirst },
   ];
 
   // Standing entries the demo user set up. They already ran this month (lastRunDay), so
@@ -107,7 +113,7 @@ export function buildSeed(email = DEMO_EMAIL): SeedData {
       kind: 'EXPENSE',
       amount: tk(12000),
       category: 'utilities',
-      note: 'বাসা ভাড়া',
+      note: d.recurringRent,
       frequency: 'MONTHLY',
       anchor: 1,
       startDate: iso(year, month, 1),
@@ -119,7 +125,7 @@ export function buildSeed(email = DEMO_EMAIL): SeedData {
       kind: 'INCOME',
       amount: tk(55000),
       category: 'salary',
-      note: 'বেতন',
+      note: d.recurringSalary,
       frequency: 'MONTHLY',
       anchor: 1,
       startDate: iso(year, month, 1),
@@ -183,7 +189,7 @@ export function buildSeed(email = DEMO_EMAIL): SeedData {
   ];
 
   const profile: UserProfile = {
-    name: DEMO_NAME,
+    name: d.name,
     email,
     openingSavings: tk(18500),
     currency: 'BDT',

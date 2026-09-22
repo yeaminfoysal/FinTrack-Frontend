@@ -5,6 +5,7 @@
 import type { StateCreator } from 'zustand';
 
 import type { MonthKey } from '@/lib/date';
+import { strings } from '@/lib/i18n';
 import type {
   Category,
   CategoryKind,
@@ -20,13 +21,18 @@ import type {
   UserProfile,
 } from '@/lib/types';
 
-export const DEFAULT_PROFILE: UserProfile = {
-  name: 'ব্যবহারকারী',
+/**
+ * The profile an account starts on. A function, not a constant: the stand-in name
+ * is read in the language set at the time, and that is chosen after this module
+ * has already been evaluated.
+ */
+export const defaultProfile = (): UserProfile => ({
+  name: strings().profile.defaultName,
   email: '',
   openingSavings: 0,
   currency: 'BDT',
   timezone: 'Asia/Dhaka',
-};
+});
 
 /** ownerEmail of the offline demo dataset. Demo data is never synced. */
 export const DEMO_OWNER = '__demo__';

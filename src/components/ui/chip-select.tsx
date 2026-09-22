@@ -5,6 +5,7 @@ import { SCREEN_GUTTER } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { withAlpha } from '@/constants/tokens';
 import { textSize } from '@/constants/typography';
+import { useStrings } from '@/lib/i18n';
 import { useTheme } from '@/providers/theme-provider';
 
 export interface ChipOption {
@@ -33,9 +34,10 @@ export function ChipSelect({
   accessibilityLabel,
   scroll,
   onAdd,
-  addLabel = 'নতুন',
+  addLabel,
 }: ChipSelectProps) {
   const { tokens } = useTheme();
+  const newChipLabel = useStrings().ui.addChip;
   const chipStyle = (selected: boolean, pressed: boolean) => ({
     minHeight: 42,
     flexDirection: 'row' as const,
@@ -74,10 +76,10 @@ export function ChipSelect({
         key="__add__"
         onPress={onAdd}
         accessibilityRole="button"
-        accessibilityLabel={addLabel}
+        accessibilityLabel={addLabel ?? newChipLabel}
         style={({ pressed }) => [chipStyle(false, pressed), { borderStyle: 'dashed' }]}>
         <Icon name="add" size={17} color={tokens.primary} />
-        <Text style={{ fontSize: textSize.md, fontWeight: '600', color: tokens.primary }}>{addLabel}</Text>
+        <Text style={{ fontSize: textSize.md, fontWeight: '600', color: tokens.primary }}>{addLabel ?? newChipLabel}</Text>
       </Pressable>,
     );
   }

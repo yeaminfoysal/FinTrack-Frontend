@@ -8,6 +8,7 @@ import { IconButton } from '@/components/ui/icon-button';
 import { Text } from '@/components/ui/text';
 import { radii, withAlpha } from '@/constants/tokens';
 import { textSize } from '@/constants/typography';
+import { useStrings } from '@/lib/i18n';
 import { useTheme } from '@/providers/theme-provider';
 
 interface BottomSheetProps {
@@ -24,6 +25,7 @@ interface BottomSheetProps {
 /** Sheet that slides over the screen from the bottom; tapping the dimmed backdrop closes it. */
 export function BottomSheet({ visible, onClose, title, children, scroll, gap = 12 }: BottomSheetProps) {
   const { tokens } = useTheme();
+  const closeLabel = useStrings().common.close;
   const insets = useSafeAreaInsets();
   // The sheet sits on the bottom edge, so the keyboard covers it completely unless it is
   // lifted by however much the keyboard actually takes (see useKeyboardOverlap).
@@ -41,7 +43,7 @@ export function BottomSheet({ visible, onClose, title, children, scroll, gap = 1
         <Pressable
           onPress={onClose}
           accessibilityRole="button"
-          accessibilityLabel="বন্ধ করুন"
+          accessibilityLabel={closeLabel}
           style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.45)' }]}
         />
         <View
@@ -75,7 +77,7 @@ export function BottomSheet({ visible, onClose, title, children, scroll, gap = 1
               <Text accessibilityRole="header" style={{ flex: 1, fontSize: textSize.lg, fontWeight: '700', color: tokens.ink }}>
                 {title}
               </Text>
-              <IconButton icon="close" label="বন্ধ করুন" variant="plain" onPress={onClose} />
+              <IconButton icon="close" label={closeLabel} variant="plain" onPress={onClose} />
             </View>
           ) : null}
           {scroll ? (

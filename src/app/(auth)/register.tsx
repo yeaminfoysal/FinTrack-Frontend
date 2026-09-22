@@ -10,6 +10,7 @@ import { Field } from '@/components/ui/field';
 import { Notice } from '@/components/ui/notice';
 import { Text } from '@/components/ui/text';
 import { textSize } from '@/constants/typography';
+import { useStrings } from '@/lib/i18n';
 import { localDigits } from '@/lib/digits';
 import { sanitizeAmountInput, toPaisa } from '@/lib/money';
 import { useTheme } from '@/providers/theme-provider';
@@ -22,6 +23,7 @@ type FieldErrors = { name?: string; email?: string; password?: string };
 
 export default function RegisterScreen() {
   const { tokens } = useTheme();
+  const t = useStrings().auth;
   const router = useRouter();
   const register = useSessionStore((s) => s.register);
 
@@ -35,10 +37,10 @@ export default function RegisterScreen() {
 
   const submit = async () => {
     const next: FieldErrors = {
-      name: name.trim() ? undefined : 'আপনার নাম লিখুন।',
-      email: EMAIL_RE.test(email.trim()) ? undefined : 'সঠিক ইমেইল ঠিকানা দিন।',
+      name: name.trim() ? undefined : t.nameRequired,
+      email: EMAIL_RE.test(email.trim()) ? undefined : t.badEmail,
       password:
-        password.length >= MIN_PASSWORD ? undefined : `পাসওয়ার্ড কমপক্ষে ${localDigits(MIN_PASSWORD)} অক্ষরের হতে হবে।`,
+        password.length >= MIN_PASSWORD ? undefined : t.passwordTooShort(localDigits(MIN_PASSWORD)),
     };
     setErrors(next);
     setFormError(null);
@@ -50,10 +52,10 @@ export default function RegisterScreen() {
     } catch (e) {
       setFormError(
         isAxiosError(e) && !e.response
-          ? 'সার্ভারে সংযোগ করা যায়নি। ইন্টারনেট চেক করে আবার চেষ্টা করুন।'
+          ? t.offline
           : isAxiosError(e) && e.response?.status === 409
-            ? 'এই ইমেইল দিয়ে আগেই অ্যাকাউন্ট আছে। লগইন করুন।'
-            : 'রেজিস্টার করা যায়নি। একটু পরে আবার চেষ্টা করুন।',
+            ? t.emailTaken
+            : t.registerFailed,
       );
     } finally {
       setLoading(false);
@@ -63,24 +65,24 @@ export default function RegisterScreen() {
   const toLogin = () => (router.canGoBack() ? router.back() : router.replace('/login'));
 
   return (
-    <AuthShell title="নতুন অ্যাকাউন্ট" subtitle="শুরু করতে কিছু তথ্য দিন">
-      <PageTitle title="রেজিস্টার" />
+    <AuthShell title={t.registerTitle} subtitle={t.registerSubtitle}>
+      <PageTitle title={t.registerPageTitle} />
       <View style={{ gap: 14 }}>
         <Field
-          label="নাম"
+          label={t.name}
           value={name}
           onChangeText={(v) => {
             setName(v);
             setErrors((e) => ({ ...e, name: undefined }));
           }}
-          placeholder="আপনার নাম"
+          placeholder={t.namePlaceholder}
           autoCapitalize="words"
           autoComplete="name"
           maxLength={120}
           error={errors.name}
         />
         <Field
-          label="ইমেইল"
+          label={t.email}
           value={email}
           onChangeText={(v) => {
             setEmail(v);
@@ -94,7 +96,7 @@ export default function RegisterScreen() {
           error={errors.email}
         />
         <Field
-          label="পাসওয়ার্ড"
+          label={t.password}
           value={password}
           onChangeText={(v) => {
             setPassword(v);
@@ -106,26 +108,26 @@ export default function RegisterScreen() {
           autoComplete="new-password"
           textContentType="newPassword"
           maxLength={128}
-          hint={`কমপক্ষে ${localDigits(MIN_PASSWORD)} অক্ষর`}
+          hint={t.minChars(localDigits(MIN_PASSWORD))}
           error={errors.password}
         />
         <Field
-          label="শুরুর সেভিংস (ঐচ্ছিক)"
+          label={t.openingLabel}
           value={opening}
           onChangeText={(v) => setOpening(sanitizeAmountInput(v))}
           placeholder="0"
           keyboardType="decimal-pad"
           prefix="৳"
-          hint="এখন হাতে, ব্যাংকে ও মোবাইল ব্যাংকিংয়ে মোট যত টাকা আছে। পরে সেটিংস থেকে বদলানো যাবে।"
+          hint={t.openingHint}
         />
 
         {formError ? <Notice text={formError} /> : null}
-        <Button label="রেজিস্টার করুন" onPress={() => void submit()} loading={loading} style={{ marginTop: 4 }} />
+        <Button label={t.register} onPress={() => void submit()} loading={loading} style={{ marginTop: 4 }} />
 
         <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 4, gap: 5 }}>
-          <Text style={{ color: tokens.muted, fontSize: textSize.md }}>ইতিমধ্যে অ্যাকাউন্ট আছে?</Text>
+          <Text style={{ color: tokens.muted, fontSize: textSize.md }}>{t.haveAccount}</Text>
           <Pressable onPress={toLogin} accessibilityRole="link" hitSlop={10} style={{ paddingVertical: 4 }}>
-            <Text style={{ color: tokens.primary, fontSize: textSize.md, fontWeight: '700' }}>লগইন</Text>
+            <Text style={{ color: tokens.primary, fontSize: textSize.md, fontWeight: '700' }}>{t.loginShort}</Text>
           </Pressable>
         </View>
       </View>

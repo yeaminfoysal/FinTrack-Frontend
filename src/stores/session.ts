@@ -8,7 +8,7 @@ import { create } from 'zustand';
 import { setOnAuthFailure } from '@/lib/api/client';
 import { AuthApi } from '@/lib/api/endpoints';
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from '@/lib/api/tokens';
-import { DEMO_EMAIL, DEMO_NAME } from '@/lib/db/seed';
+import { DEMO_EMAIL, demoName } from '@/lib/db/seed';
 import { DEMO_OWNER, useDataStore } from '@/stores/data';
 import { useSyncStore } from '@/stores/sync';
 
@@ -78,7 +78,7 @@ export const useSessionStore = create<SessionState>((set) => {
     loginDemo: async () => {
       await setTokens('demo-access-token', 'demo-refresh-token');
       useDataStore.getState().seedDemo();
-      set({ status: 'authenticated', user: { email: DEMO_EMAIL, name: DEMO_NAME } });
+      set({ status: 'authenticated', user: { email: DEMO_EMAIL, name: demoName() } });
     },
 
     logout: async () => {

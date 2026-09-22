@@ -9,15 +9,16 @@ import { rowsInMonth } from '@/lib/calc/month-index';
 import {
   dayKeyOf,
   dayKeyToIso,
-  dayMonthBn,
-  fullDateBn,
+  dayMonth,
+  fullDate,
   shiftDayKey,
   todayKey,
-  weekdayBn,
+  weekday,
   type DayKey,
   type MonthKey,
 } from '@/lib/date';
 import { toLatinDigits } from '@/lib/digits';
+import { getLanguage, stringsFor, type Lang } from '@/lib/i18n';
 import { formatAmount, formatTaka } from '@/lib/money';
 import type { Category, Expense, Income, Loan, LoanPayment } from '@/lib/types';
 
@@ -54,10 +55,17 @@ function searchText(parts: (string | null | undefined)[]): string {
   return toLatinDigits(parts.filter(Boolean).join(' ')).toLowerCase();
 }
 
+/** Every name a category goes by — so a search finds it whichever language wrote it. */
+function categoryTerms(option: { label: string; searchTerms?: string[] } | undefined): string[] {
+  if (!option) return [];
+  return option.searchTerms ?? [option.label];
+}
+
 /**
  * Every live income, expense and loan as a display row, newest first. `categories` are the
  * ones the user added — without them their entries would fall back to অন্যান্য. `loanPayments`
  * decide how much of a loan is still owed; without them every loan reads as untouched.
+ * `lang` is the language the rows are written in.
  */
 export function buildActivities(
   incomes: Income[],
@@ -65,9 +73,11 @@ export function buildActivities(
   loans: Loan[],
   categories: Category[] = [],
   loanPayments: LoanPayment[] = [],
+  lang: Lang = getLanguage(),
 ): Activity[] {
-  const expenseCategories = categorySet('EXPENSE', categories);
-  const incomeSources = categorySet('INCOME', categories);
+  const t = stringsFor(lang).activity;
+  const expenseCategories = categorySet('EXPENSE', categories, lang);
+  const incomeSources = categorySet('INCOME', categories, lang);
   const items: Activity[] = [];
   for (const i of incomes) {
     if (i.isDeleted) continue;
@@ -76,12 +86,12 @@ export function buildActivities(
       id: i.id,
       kind: 'income',
       icon: source?.iconName ?? 'arrow-down',
-      title: i.note || source?.label || 'আয়',
-      subtitle: i.note && source ? source.label : 'আয়',
+      title: i.note || source?.label || t.income,
+      subtitle: i.note && source ? source.label : t.income,
       amount: i.amount,
       date: i.date,
       createdAt: i.createdAt,
-      searchText: searchText([i.note, source?.label, 'আয়', amountTerms(i.amount)]),
+      searchText: searchText([i.note, ...categoryTerms(source), t.income, amountTerms(i.amount)]),
     });
   }
   for (const e of expenses) {
@@ -92,12 +102,12 @@ export function buildActivities(
       kind: 'expense',
       icon: meta.iconName,
       title: e.description || meta.label,
-      subtitle: e.description ? meta.label : 'খরচ',
+      subtitle: e.description ? meta.label : t.expense,
       amount: -e.amount,
       date: e.date,
       createdAt: e.createdAt,
       category: e.category,
-      searchText: searchText([e.description, meta.label, meta.en, 'খরচ', amountTerms(e.amount)]),
+      searchText: searchText([e.description, ...categoryTerms(meta), t.expense, amountTerms(e.amount)]),
     });
   }
   for (const l of loans) {
@@ -105,15 +115,9 @@ export function buildActivities(
     const lent = l.direction === 'LENT';
     const paid = paidOnLoan(l, loanPayments);
     const settled = paid >= l.amount;
-    const kindLabel = lent ? 'ধার দেওয়া' : 'ধার নেওয়া';
+    const kindLabel = lent ? t.lent : t.borrowed;
     // Part of it back: what is left says more than "চলমান".
-    const status = settled
-      ? lent
-        ? 'ফেরত পাওয়া'
-        : 'শোধ করা'
-      : paid > 0
-        ? `বাকি ${formatTaka(l.amount - paid)}`
-        : 'চলমান';
+    const status = settled ? (lent ? t.returned : t.repaid) : paid > 0 ? t.remaining(formatTaka(l.amount - paid)) : t.ongoing;
     items.push({
       id: l.id,
       kind: lent ? 'lent' : 'borrowed',
@@ -124,7 +128,14 @@ export function buildActivities(
       date: l.date,
       createdAt: l.createdAt,
       settled,
-      searchText: searchText([l.personName, l.note, kindLabel, lent ? 'পাওনা' : 'দেনা', 'লোন', amountTerms(l.amount)]),
+      searchText: searchText([
+        l.personName,
+        l.note,
+        kindLabel,
+        lent ? t.searchReceivable : t.searchPayable,
+        t.searchLoan,
+        amountTerms(l.amount),
+      ]),
     });
   }
   return items.sort(newestFirst);
@@ -187,10 +198,11 @@ export function filterActivities(items: Activity[], filter: ActivityFilter): Act
 }
 
 /** Heading for a day in a list: "আজ", "গতকাল" or "12 সেপ্টেম্বর · শনিবার" (with the year from another year). */
-export function dayLabelBn(day: DayKey, today: DayKey = todayKey()): string {
-  if (day === today) return 'আজ';
-  if (day === shiftDayKey(today, -1)) return 'গতকাল';
+export function dayLabel(day: DayKey, today: DayKey = todayKey(), lang: Lang = getLanguage()): string {
+  const t = stringsFor(lang);
+  if (day === today) return t.common.today;
+  if (day === shiftDayKey(today, -1)) return t.common.yesterday;
   const iso = dayKeyToIso(day);
-  const date = day.slice(0, 4) === today.slice(0, 4) ? dayMonthBn(iso) : fullDateBn(iso);
-  return `${date} · ${weekdayBn(iso)}`;
+  const date = day.slice(0, 4) === today.slice(0, 4) ? dayMonth(iso) : fullDate(iso);
+  return t.activity.dayHeading(date, weekday(iso));
 }

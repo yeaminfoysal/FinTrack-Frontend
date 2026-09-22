@@ -11,7 +11,8 @@ import { FieldLabel } from '@/components/ui/field';
 import { Text } from '@/components/ui/text';
 import { withAlpha } from '@/constants/tokens';
 import { textSize } from '@/constants/typography';
-import { notificationsAvailable, notificationsOnWeb, timeLabelBn } from '@/lib/notifications';
+import { useStrings } from '@/lib/i18n';
+import { notificationsAvailable, notificationsOnWeb, timeLabel } from '@/lib/notifications';
 import { useTheme } from '@/providers/theme-provider';
 import { useRemindersStore } from '@/stores/reminders';
 import { showToast } from '@/stores/ui';
@@ -19,13 +20,11 @@ import { showToast } from '@/stores/ui';
 /** The times people actually want a nudge: after work, after dinner, before bed. */
 const TIME_CHOICES = [18 * 60, 20 * 60, 21 * 60, 22 * 60];
 
-const TIME_OPTIONS: ChipOption[] = TIME_CHOICES.map((minutes) => ({
-  key: String(minutes),
-  label: timeLabelBn(minutes),
-}));
-
 export function ReminderSettings() {
   const { tokens } = useTheme();
+  const t = useStrings().reminders;
+  // Built here, not at module load, so the times read in whichever language is set.
+  const timeOptions: ChipOption[] = TIME_CHOICES.map((minutes) => ({ key: String(minutes), label: timeLabel(minutes) }));
   const load = useRemindersStore((s) => s.load);
   const update = useRemindersStore((s) => s.update);
   const dailyEnabled = useRemindersStore((s) => s.dailyEnabled);
@@ -41,7 +40,7 @@ export function ReminderSettings() {
     if (!ok) {
       showToast({
         tone: 'error',
-        message: 'নোটিফিকেশনের অনুমতি পাওয়া যায়নি। ফোনের সেটিংস থেকে অনুমতি দিন।',
+        message: t.permissionDenied,
       });
     }
   };
@@ -51,8 +50,8 @@ export function ReminderSettings() {
       <Card soft>
         <Text style={{ fontSize: textSize.sm, lineHeight: 20, color: tokens.muted }}>
           {notificationsOnWeb
-            ? 'রিমাইন্ডার শুধু ফোনের অ্যাপে কাজ করে — ব্রাউজারে নয়।'
-            : 'Expo Go-তে নোটিফিকেশন কাজ করে না। ডেভেলপমেন্ট বিল্ড (npx expo run:android) বা রিলিজ বিল্ডে রিমাইন্ডার চালু করা যাবে।'}
+            ? t.webOnly
+            : t.needDevBuild}
         </Text>
       </Card>
     );
@@ -61,21 +60,21 @@ export function ReminderSettings() {
   return (
     <Card style={{ gap: 14 }}>
       <ToggleRow
-        title="আজকের খরচ লিখেছেন?"
-        subtitle="প্রতিদিন একবার মনে করিয়ে দেবে। যেদিন খরচ লেখা হয়ে গেছে, সেদিন আসবে না।"
+        title={t.dailyTitle}
+        subtitle={t.dailySubtitle}
         value={dailyEnabled}
         onChange={(next) => void toggle({ dailyEnabled: next })}
       />
 
       {dailyEnabled ? (
         <View style={{ gap: 7 }}>
-          <FieldLabel>কখন</FieldLabel>
+          <FieldLabel>{t.when}</FieldLabel>
           <ChipSelect
             scroll
-            options={TIME_OPTIONS}
+            options={timeOptions}
             value={String(dailyMinutes)}
             onChange={(key) => void update({ dailyMinutes: Number(key) })}
-            accessibilityLabel="রিমাইন্ডারের সময়"
+            accessibilityLabel={t.timeA11y}
           />
         </View>
       ) : null}
@@ -83,8 +82,8 @@ export function ReminderSettings() {
       <View style={{ height: 1, backgroundColor: tokens.line }} />
 
       <ToggleRow
-        title="লোন ফেরতের তারিখ"
-        subtitle="যেদিন কারো টাকা ফেরত পাওয়ার বা শোধ করার কথা, সেদিন সকালে জানাবে।"
+        title={t.loanTitle}
+        subtitle={t.loanSubtitle}
         value={loanDueEnabled}
         onChange={(next) => void toggle({ loanDueEnabled: next })}
       />

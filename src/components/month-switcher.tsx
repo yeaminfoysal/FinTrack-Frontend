@@ -11,13 +11,14 @@ import { monthDailyExpense, monthIncome } from '@/lib/calc';
 import {
   currentMonthKey,
   monthKeyOf,
-  monthLabelBn,
+  monthLabel,
   monthName,
   nextMonthKey,
   parseMonthKey,
   prevMonthKey,
   type MonthKey,
 } from '@/lib/date';
+import { useStrings } from '@/lib/i18n';
 import { formatTaka } from '@/lib/money';
 import { useTheme } from '@/providers/theme-provider';
 import { useDataStore } from '@/stores/data';
@@ -48,11 +49,12 @@ interface MonthSwitcherProps {
 /** "‹ সেপ্টেম্বর 2026 ›" pill; the label opens a sheet with every month. */
 export function MonthSwitcher({ value, onChange, months }: MonthSwitcherProps) {
   const { tokens } = useTheme();
+  const s = useStrings();
   const [pickerOpen, setPickerOpen] = useState(false);
   // On narrow phones the year is dropped for this year's months so the screen title keeps its room.
   const compact = useWindowDimensions().width < 400;
   const sameYear = value.slice(0, 4) === currentMonthKey().slice(0, 4);
-  const label = compact && sameYear ? monthName(parseMonthKey(value).month) : monthLabelBn(value);
+  const label = compact && sameYear ? monthName(parseMonthKey(value).month) : monthLabel(value);
 
   return (
     <View
@@ -66,7 +68,7 @@ export function MonthSwitcher({ value, onChange, months }: MonthSwitcherProps) {
       }}>
       <IconButton
         icon="chevron-back"
-        label="আগের মাস"
+        label={s.ui.prevMonth}
         variant="plain"
         size={36}
         iconSize={18}
@@ -76,7 +78,7 @@ export function MonthSwitcher({ value, onChange, months }: MonthSwitcherProps) {
       <Pressable
         onPress={() => setPickerOpen(true)}
         accessibilityRole="button"
-        accessibilityLabel={`${monthLabelBn(value)} — মাস বাছাই করুন`}
+        accessibilityLabel={s.monthSwitcher.pickHint(monthLabel(value))}
         hitSlop={6}
         style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8 }}>
         <Text numberOfLines={1} style={{ fontSize: textSize.sm, fontWeight: '600', color: tokens.ink }}>
@@ -86,14 +88,14 @@ export function MonthSwitcher({ value, onChange, months }: MonthSwitcherProps) {
       </Pressable>
       <IconButton
         icon="chevron-forward"
-        label="পরের মাস"
+        label={s.ui.nextMonth}
         variant="plain"
         size={36}
         iconSize={18}
         disabled={value >= months[0]}
         onPress={() => onChange(nextMonthKey(value))}
       />
-      <BottomSheet visible={pickerOpen} onClose={() => setPickerOpen(false)} title="মাস বাছাই করুন" scroll>
+      <BottomSheet visible={pickerOpen} onClose={() => setPickerOpen(false)} title={s.monthSwitcher.pick} scroll>
         <MonthList
           months={months}
           value={value}
@@ -110,6 +112,7 @@ export function MonthSwitcher({ value, onChange, months }: MonthSwitcherProps) {
 /** Its own component so the per-month totals are only worked out while the sheet is open. */
 function MonthList({ months, value, onSelect }: { months: MonthKey[]; value: MonthKey; onSelect: (key: MonthKey) => void }) {
   const { tokens } = useTheme();
+  const s = useStrings();
   const incomes = useDataStore((s) => s.incomes);
   const expenses = useDataStore((s) => s.expenses);
   const current = currentMonthKey();
@@ -120,10 +123,11 @@ function MonthList({ months, value, onSelect }: { months: MonthKey[]; value: Mon
         <ListRow
           key={key}
           divider={idx > 0}
-          title={`${monthLabelBn(key)}${key === current ? ' · চলতি' : ''}`}
+          title={key === current ? s.monthSwitcher.currentMonth(monthLabel(key)) : monthLabel(key)}
           subtitle={
             <>
-              আয় <Text style={{ color: tokens.income }}>{formatTaka(monthIncome(incomes, key))}</Text> · খরচ{' '}
+              {s.activity.income} <Text style={{ color: tokens.income }}>{formatTaka(monthIncome(incomes, key))}</Text> ·{' '}
+              {s.activity.expense}{' '}
               <Text style={{ color: tokens.expense }}>{formatTaka(monthDailyExpense(expenses, key))}</Text>
             </>
           }

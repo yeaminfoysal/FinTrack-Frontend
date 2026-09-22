@@ -6,8 +6,9 @@ import { Text } from '@/components/ui/text';
 import { withAlpha } from '@/constants/tokens';
 import { textSize } from '@/constants/typography';
 import type { CategoryTotal, DaySpend } from '@/lib/calc';
-import { dayKeyToIso, monthLabelBn, monthShortBn, weekdayShortBn, type MonthKey } from '@/lib/date';
+import { dayKeyToIso, monthLabel, monthShort, weekdayShort, type MonthKey } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
+import { useStrings } from '@/lib/i18n';
 import { useCategorySet } from '@/hooks/use-categories';
 import { formatTaka } from '@/lib/money';
 import { useTheme } from '@/providers/theme-provider';
@@ -81,6 +82,7 @@ export function SavingBars({
   onSelect?: (key: MonthKey) => void;
 }) {
   const { tokens } = useTheme();
+  const t = useStrings().charts;
   const maxUp = Math.max(0, ...months.map((m) => m.saving));
   const maxDown = Math.max(0, ...months.map((m) => -m.saving));
   const range = maxUp + maxDown;
@@ -106,7 +108,7 @@ export function SavingBars({
             onPress={onSelect ? () => onSelect(m.key) : undefined}
             disabled={!onSelect}
             accessibilityRole="button"
-            accessibilityLabel={`${monthLabelBn(m.key)}, সঞ্চয় ${formatTaka(m.saving)}`}
+            accessibilityLabel={t.monthSaving(monthLabel(m.key), formatTaka(m.saving))}
             accessibilityState={{ selected: isSelected }}
             style={{ flex: 1, alignItems: 'center' }}>
             <View style={{ height: upHeight, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'flex-end' }}>
@@ -124,7 +126,7 @@ export function SavingBars({
                 fontWeight: isSelected ? '700' : '400',
                 color: isSelected ? tokens.ink : tokens.muted,
               }}>
-              {monthShortBn(m.key)}
+              {monthShort(m.key)}
             </Text>
           </Pressable>
         );
@@ -153,7 +155,7 @@ export function DaySpendBars({ days }: { days: DaySpend[] }) {
           <View
             key={d.day}
             accessible
-            accessibilityLabel={`${weekdayShortBn(dayKeyToIso(d.day))} ${formatTaka(d.total)}`}
+            accessibilityLabel={`${weekdayShort(dayKeyToIso(d.day))} ${formatTaka(d.total)}`}
             style={{ flex: 1, alignItems: 'center', gap: 5 }}>
             <View style={{ height: DAY_CHART_HEIGHT, alignSelf: 'stretch', justifyContent: 'flex-end' }}>
               <View
@@ -171,7 +173,7 @@ export function DaySpendBars({ days }: { days: DaySpend[] }) {
                 fontWeight: isToday ? '700' : '400',
                 color: isToday ? tokens.ink : tokens.muted,
               }}>
-              {weekdayShortBn(dayKeyToIso(d.day))}
+              {weekdayShort(dayKeyToIso(d.day))}
             </Text>
           </View>
         );

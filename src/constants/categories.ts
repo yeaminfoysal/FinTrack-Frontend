@@ -8,53 +8,75 @@
  * their name; they just stop being offered.
  */
 import type { IconName } from '@/components/ui/icon';
+import { getLanguage, type Lang } from '@/lib/i18n';
 import type { Category, CategoryKind } from '@/lib/types';
 
 export type CategoryOption = {
   /** What an expense.category / income.source holds. */
   key: string;
-  label: string; // Bengali
+  /** In the reading language. */
+  label: string;
   /** Emoji, used in the PDF report. */
   icon: string;
   /** Vector icon, used in the app. */
   iconName: IconName;
   /** English label, matched by search. Built-ins only. */
   en?: string;
+  /** Every name this option goes by, so a search finds it in either language. */
+  searchTerms?: string[];
   /** Added by the user — can be renamed or removed. */
   custom?: boolean;
 };
 
-export const BUILTIN_EXPENSE_CATEGORIES: CategoryOption[] = [
-  { key: 'food', label: 'খাবার', en: 'Food', icon: '🍽', iconName: 'restaurant-outline' },
-  { key: 'transport', label: 'যাতায়াত', en: 'Transport', icon: '🚌', iconName: 'bus-outline' },
-  { key: 'shopping', label: 'কেনাকাটা', en: 'Shopping', icon: '🛍', iconName: 'bag-handle-outline' },
-  { key: 'medical', label: 'চিকিৎসা', en: 'Medical', icon: '💊', iconName: 'medkit-outline' },
-  { key: 'education', label: 'শিক্ষা', en: 'Education', icon: '📚', iconName: 'school-outline' },
-  { key: 'entertainment', label: 'বিনোদন', en: 'Entertainment', icon: '🎬', iconName: 'film-outline' },
-  { key: 'utilities', label: 'ইউটিলিটি', en: 'Utilities', icon: '💡', iconName: 'bulb-outline' },
-  { key: 'others', label: 'অন্যান্য', en: 'Others', icon: '📦', iconName: 'cube-outline' },
+/**
+ * A built-in category. Its names live here rather than in the language catalogue
+ * because they belong to the key: `food` is one thing with two names, and an entry
+ * written in Bangla has to keep reading right after a switch to English.
+ */
+type BuiltinCategory = { key: string; bn: string; en: string; icon: string; iconName: IconName };
+
+export const BUILTIN_EXPENSE_CATEGORIES: BuiltinCategory[] = [
+  { key: 'food', bn: 'খাবার', en: 'Food', icon: '🍽', iconName: 'restaurant-outline' },
+  { key: 'transport', bn: 'যাতায়াত', en: 'Transport', icon: '🚌', iconName: 'bus-outline' },
+  { key: 'shopping', bn: 'কেনাকাটা', en: 'Shopping', icon: '🛍', iconName: 'bag-handle-outline' },
+  { key: 'medical', bn: 'চিকিৎসা', en: 'Medical', icon: '💊', iconName: 'medkit-outline' },
+  { key: 'education', bn: 'শিক্ষা', en: 'Education', icon: '📚', iconName: 'school-outline' },
+  { key: 'entertainment', bn: 'বিনোদন', en: 'Entertainment', icon: '🎬', iconName: 'film-outline' },
+  { key: 'utilities', bn: 'ইউটিলিটি', en: 'Utilities', icon: '💡', iconName: 'bulb-outline' },
+  { key: 'others', bn: 'অন্যান্য', en: 'Others', icon: '📦', iconName: 'cube-outline' },
 ];
 
-export const BUILTIN_INCOME_SOURCES: CategoryOption[] = [
-  { key: 'salary', label: 'বেতন', en: 'Salary', icon: '💼', iconName: 'briefcase-outline' },
-  { key: 'freelance', label: 'ফ্রিল্যান্স', en: 'Freelance', icon: '💻', iconName: 'laptop-outline' },
-  { key: 'business', label: 'ব্যবসা', en: 'Business', icon: '🏪', iconName: 'storefront-outline' },
-  { key: 'gift', label: 'উপহার', en: 'Gift', icon: '🎁', iconName: 'gift-outline' },
-  { key: 'other', label: 'অন্যান্য', en: 'Other', icon: '➕', iconName: 'add-circle-outline' },
+export const BUILTIN_INCOME_SOURCES: BuiltinCategory[] = [
+  { key: 'salary', bn: 'বেতন', en: 'Salary', icon: '💼', iconName: 'briefcase-outline' },
+  { key: 'freelance', bn: 'ফ্রিল্যান্স', en: 'Freelance', icon: '💻', iconName: 'laptop-outline' },
+  { key: 'business', bn: 'ব্যবসা', en: 'Business', icon: '🏪', iconName: 'storefront-outline' },
+  { key: 'gift', bn: 'উপহার', en: 'Gift', icon: '🎁', iconName: 'gift-outline' },
+  { key: 'other', bn: 'অন্যান্য', en: 'Other', icon: '➕', iconName: 'add-circle-outline' },
 ];
 
 /** The key a new entry starts on, and where an unknown expense key lands. */
 export const DEFAULT_EXPENSE_CATEGORY = 'food';
 export const DEFAULT_INCOME_SOURCE = 'salary';
 
-/** Stands in for a key that matches nothing — a category deleted on a device that never synced. */
-const FALLBACK: Record<CategoryKind, CategoryOption> = {
-  EXPENSE: BUILTIN_EXPENSE_CATEGORIES[BUILTIN_EXPENSE_CATEGORIES.length - 1],
-  INCOME: BUILTIN_INCOME_SOURCES[BUILTIN_INCOME_SOURCES.length - 1],
-};
+function builtinOption(c: BuiltinCategory, lang: Lang): CategoryOption {
+  return {
+    key: c.key,
+    label: lang === 'en' ? c.en : c.bn,
+    icon: c.icon,
+    iconName: c.iconName,
+    en: c.en,
+    searchTerms: [c.bn, c.en],
+  };
+}
 
-export const builtinsOf = (kind: CategoryKind): CategoryOption[] =>
-  kind === 'EXPENSE' ? BUILTIN_EXPENSE_CATEGORIES : BUILTIN_INCOME_SOURCES;
+export const builtinsOf = (kind: CategoryKind, lang: Lang = getLanguage()): CategoryOption[] =>
+  (kind === 'EXPENSE' ? BUILTIN_EXPENSE_CATEGORIES : BUILTIN_INCOME_SOURCES).map((c) => builtinOption(c, lang));
+
+/** Stands in for a key that matches nothing — a category deleted on a device that never synced. */
+function fallbackOf(kind: CategoryKind, lang: Lang): CategoryOption {
+  const builtins = kind === 'EXPENSE' ? BUILTIN_EXPENSE_CATEGORIES : BUILTIN_INCOME_SOURCES;
+  return builtinOption(builtins[builtins.length - 1], lang);
+}
 
 /** Icon + matching emoji a user picks from when creating a category. */
 export const CATEGORY_ICON_CHOICES: { iconName: IconName; icon: string }[] = [
@@ -122,7 +144,7 @@ export interface CategorySet {
   options: CategoryOption[];
   /** The user's own live categories, oldest first. */
   custom: Category[];
-  /** Display meta for a stored key. A key nothing matches falls back to "অন্যান্য". */
+  /** Display meta for a stored key. A key nothing matches falls back to "অন্যান্য" / "Others". */
   meta: (key: string) => CategoryOption;
   /** Like meta, but undefined when the key matches nothing. */
   find: (key: string) => CategoryOption | undefined;
@@ -131,8 +153,12 @@ export interface CategorySet {
 }
 
 /** Built-ins plus the user's categories of one kind, ready for chips and lookups. */
-export function categorySet(kind: CategoryKind, categories: readonly Category[] = []): CategorySet {
-  const builtins = builtinsOf(kind);
+export function categorySet(
+  kind: CategoryKind,
+  categories: readonly Category[] = [],
+  lang: Lang = getLanguage(),
+): CategorySet {
+  const builtins = builtinsOf(kind, lang);
   const mine = categories.filter((c) => c.kind === kind);
   const live = mine.filter((c) => !c.isDeleted);
 
@@ -147,7 +173,7 @@ export function categorySet(kind: CategoryKind, categories: readonly Category[] 
     kind,
     options: [...builtins, ...live.map(toOption)],
     custom: live,
-    meta: (key) => index.get(key) ?? FALLBACK[kind],
+    meta: (key) => index.get(key) ?? fallbackOf(kind, lang),
     find: (key) => index.get(key),
     hasLabel: (label, exceptId) => {
       const owner = taken.get(normalized(label));

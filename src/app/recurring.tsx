@@ -18,7 +18,8 @@ import { ListGroup, ListRow } from '@/components/ui/list-row';
 import { Text } from '@/components/ui/text';
 import { textSize } from '@/constants/typography';
 import { useCategorySet } from '@/hooks/use-categories';
-import { frequencyLabelBn } from '@/lib/calc/recurring';
+import { frequencyLabel } from '@/lib/calc/recurring';
+import { useStrings } from '@/lib/i18n';
 import { formatTaka } from '@/lib/money';
 import type { Recurring } from '@/lib/types';
 import { useTheme } from '@/providers/theme-provider';
@@ -27,6 +28,8 @@ import { confirmDialog, showToast } from '@/stores/ui';
 
 export default function RecurringScreen() {
   const { tokens } = useTheme();
+  const strings = useStrings();
+  const t = strings.recurringScreen;
   const recurrings = useDataStore((s) => s.recurrings);
   const deleteRecurring = useDataStore((s) => s.deleteRecurring);
   const restoreRecurring = useDataStore((s) => s.restoreRecurring);
@@ -45,30 +48,30 @@ export default function RecurringScreen() {
 
   const remove = async (rule: Recurring) => {
     const confirmed = await confirmDialog({
-      title: 'নিয়মিত লেনদেন মুছবেন?',
-      message: 'এটি আর নিজে থেকে লেখা হবে না। আগে যে এন্ট্রিগুলো হয়ে গেছে সেগুলো থেকে যাবে।',
-      confirmLabel: 'মুছুন',
+      title: t.deleteTitle,
+      message: t.deleteMessage,
+      confirmLabel: strings.common.remove,
       destructive: true,
     });
     if (!confirmed) return;
     deleteRecurring(rule.id);
     showToast({
-      message: 'নিয়মিত লেনদেন মুছে ফেলা হয়েছে',
-      actionLabel: 'ফিরিয়ে নিন',
+      message: t.deleted,
+      actionLabel: strings.common.undo,
       onAction: () => restoreRecurring(rule.id),
     });
   };
 
   return (
-    <ModalShell title="নিয়মিত লেনদেন">
-      <PageTitle title="নিয়মিত লেনদেন" />
+    <ModalShell title={t.title}>
+      <PageTitle title={t.title} />
 
       {rules.length === 0 ? (
         <EmptyState
           icon="repeat-outline"
-          title="এখনো কিছু নেই"
-          message="বাসা ভাড়া, বেতন, ইন্টারনেট বিল — যেগুলো প্রতিবার একই রকম, সেগুলো একবার লিখে রাখুন। সময় হলে অ্যাপ নিজেই এন্ট্রি করে দেবে।"
-          actionLabel="প্রথমটি যোগ করুন"
+          title={t.emptyTitle}
+          message={t.emptyMessage}
+          actionLabel={t.emptyAction}
           onAction={() => setEditing({})}
         />
       ) : (
@@ -77,16 +80,18 @@ export default function RecurringScreen() {
             <Card soft padding={15} style={{ flexDirection: 'row', gap: 12 }}>
               <Icon name="calendar-number-outline" size={18} color={tokens.muted} />
               <Text style={{ flex: 1, fontSize: textSize.sm, lineHeight: 20, color: tokens.muted }}>
-                প্রতি মাসে নিজে থেকেই{' '}
+                {t.monthlyPrefix}
                 {monthlyIncome > 0 ? (
                   <>
-                    আয় <Text style={{ fontWeight: '700', color: tokens.income }}>{formatTaka(monthlyIncome)}</Text>
+                    {strings.activity.income}{' '}
+                    <Text style={{ fontWeight: '700', color: tokens.income }}>{formatTaka(monthlyIncome)}</Text>
                   </>
                 ) : null}
                 {monthlyIncome > 0 && monthlyExpense > 0 ? ' · ' : ''}
                 {monthlyExpense > 0 ? (
                   <>
-                    খরচ <Text style={{ fontWeight: '700', color: tokens.expense }}>{formatTaka(monthlyExpense)}</Text>
+                    {strings.activity.expense}{' '}
+                    <Text style={{ fontWeight: '700', color: tokens.expense }}>{formatTaka(monthlyExpense)}</Text>
                   </>
                 ) : null}
               </Text>
@@ -100,12 +105,12 @@ export default function RecurringScreen() {
           </ListGroup>
 
 
-          <Button label="নতুন যোগ করুন" icon="add" variant="secondary" onPress={() => setEditing({})} />
+          <Button label={t.addNew} icon="add" variant="secondary" onPress={() => setEditing({})} />
         </>
       )}
 
       <Text style={{ fontSize: textSize.sm, lineHeight: 19, color: tokens.muted, marginLeft: 2, marginTop: 4 }}>
-        এন্ট্রিগুলো সাধারণ আয়/খরচ হিসেবেই লেখা হয় — চাইলে পরে বদলানো বা মোছা যায়।
+        {t.footer}
       </Text>
 
       {editing ? (
@@ -126,6 +131,7 @@ export default function RecurringScreen() {
  */
 function RuleRow({ rule, divider, onPress }: { rule: Recurring; divider: boolean; onPress: () => void }) {
   const { tokens } = useTheme();
+  const t = useStrings().recurringScreen;
   const categories = useCategorySet(rule.kind);
   const setPaused = useDataStore((s) => s.setRecurringPaused);
   const meta = categories.meta(rule.category);
@@ -144,18 +150,18 @@ function RuleRow({ rule, divider, onPress }: { rule: Recurring; divider: boolean
       <View style={{ flex: 1 }}>
         <ListRow
           title={name}
-          subtitle={`${frequencyLabelBn(rule)}${rule.isPaused ? ' · বন্ধ আছে' : ''}`}
+          subtitle={rule.isPaused ? t.paused(frequencyLabel(rule)) : frequencyLabel(rule)}
           icon={meta.iconName}
           tint={color}
           dim={rule.isPaused}
           onPress={onPress}
-          accessibilityHint="বদলান বা মুছুন"
+          accessibilityHint={t.rowHint}
           trailing={<AmountText paisa={rule.amount} weight="700" color={color} numberOfLines={1} />}
         />
       </View>
       <IconButton
         icon={rule.isPaused ? 'play-outline' : 'pause-outline'}
-        label={rule.isPaused ? `${name} আবার চালু করুন` : `${name} বন্ধ রাখুন`}
+        label={rule.isPaused ? t.resume(name) : t.pause(name)}
         variant="plain"
         color={tokens.muted}
         onPress={() => setPaused(rule.id, !rule.isPaused)}

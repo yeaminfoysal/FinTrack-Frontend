@@ -6,8 +6,9 @@
 import { categorySet } from '@/constants/categories';
 import { lightTokens as t } from '@/constants/tokens';
 import { categoryTotals, dailyExpenses, paidOnLoan, paymentsOf, type DashboardSnapshot } from '@/lib/calc';
-import { dayMonthBn, fullDateBn, isInMonth, monthLabelBn, weekdayBn, type MonthKey } from '@/lib/date';
+import { dayMonth, fullDate, isInMonth, monthLabel, weekday, type MonthKey } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
+import { strings } from '@/lib/i18n';
 import { formatTaka } from '@/lib/money';
 import type { Category, Expense, Income, Loan, LoanPayment } from '@/lib/types';
 
@@ -38,8 +39,10 @@ function row(label: string, value: string, opts: { color?: string; strong?: bool
 
 export function buildMonthReportHtml(input: MonthReportInput): string {
   const { monthKey, snapshot: s } = input;
+  const p = strings().pdf;
+  const b = strings().balance;
   const closing = s.opening + s.saving;
-  const monthName = monthLabelBn(monthKey);
+  const monthName = monthLabel(monthKey);
 
   const incomes = input.incomes.filter((i) => !i.isDeleted && isInMonth(i.date, monthKey)).sort(byDateAsc);
   const days = dailyExpenses(input.expenses, monthKey).reverse(); // oldest day first reads naturally on paper
@@ -49,23 +52,23 @@ export function buildMonthReportHtml(input: MonthReportInput): string {
   const incomeSources = categorySet('INCOME', input.categories);
   const categories = categoryTotals(input.expenses, monthKey);
 
-  const untrackedLabel = s.untracked < 0 ? 'আনট্র্যাকড আয়' : 'আনট্র্যাকড খরচ';
-  const practicalNote = s.practical == null ? ' <span class="muted">(ব্যালেন্স ইনপুট দেওয়া হয়নি)</span>' : '';
+  const untrackedLabel = s.untracked < 0 ? b.untrackedIncome : b.untrackedExpense;
+  const practicalNote = s.practical == null ? ` <span class="muted">${p.noPracticalNote}</span>` : '';
 
   const summaryTable = [
-    row('ওপেনিং ব্যালেন্স', formatTaka(s.opening)),
-    row('মোট আয়', `+ ${formatTaka(s.monthIncome)}`, { color: t.income }),
-    row('দৈনিক খরচ', `− ${formatTaka(s.monthDailyExpense)}`, { color: t.expense }),
+    row(b.opening, formatTaka(s.opening)),
+    row(b.totalIncome, `+ ${formatTaka(s.monthIncome)}`, { color: t.income }),
+    row(b.dailyExpense, `− ${formatTaka(s.monthDailyExpense)}`, { color: t.expense }),
     row(untrackedLabel + practicalNote, formatTaka(Math.abs(s.untracked)), { color: s.untracked < 0 ? t.income : t.borrowed }),
-    row('মাসের সঞ্চয়', formatTaka(s.saving), { color: s.saving < 0 ? t.expense : t.income, strong: true }),
-    row('ক্লোজিং ব্যালেন্স', formatTaka(closing), { strong: true }),
+    row(b.monthSaving, formatTaka(s.saving), { color: s.saving < 0 ? t.expense : t.income, strong: true }),
+    row(b.closing, formatTaka(closing), { strong: true }),
   ].join('');
 
   const positionTable = [
-    row('পাওনা (বাকি)', formatTaka(s.outstandingLent), { color: t.lent }),
-    row('দেনা (বাকি)', formatTaka(s.outstandingBorrowed), { color: t.borrowed }),
-    s.practical != null ? row('প্র্যাকটিক্যাল ব্যালেন্স (হাতে আছে)', formatTaka(s.practical)) : '',
-    row('নেট ওয়ার্থ', formatTaka(s.netWorth), { strong: true }),
+    row(b.outstandingLent, formatTaka(s.outstandingLent), { color: t.lent }),
+    row(b.outstandingBorrowed, formatTaka(s.outstandingBorrowed), { color: t.borrowed }),
+    s.practical != null ? row(p.practical, formatTaka(s.practical)) : '',
+    row(b.netWorth, formatTaka(s.netWorth), { strong: true }),
   ].join('');
 
   const categoryRows = categories
@@ -79,7 +82,7 @@ export function buildMonthReportHtml(input: MonthReportInput): string {
   const incomeRows = incomes
     .map((i) => {
       const src = incomeSources.find(i.source);
-      return `<tr><td class="date">${dayMonthBn(i.date)}</td><td>${src ? `${src.icon} ${esc(src.label)}` : esc(i.source)}</td><td>${esc(i.note ?? '')}</td><td class="num" style="color:${t.income}">${formatTaka(i.amount)}</td></tr>`;
+      return `<tr><td class="date">${dayMonth(i.date)}</td><td>${src ? `${src.icon} ${esc(src.label)}` : esc(i.source)}</td><td>${esc(i.note ?? '')}</td><td class="num" style="color:${t.income}">${formatTaka(i.amount)}</td></tr>`;
     })
     .join('');
 
@@ -92,7 +95,7 @@ export function buildMonthReportHtml(input: MonthReportInput): string {
           return `<tr class="item"><td></td><td>${meta.icon} ${esc(meta.label)}</td><td>${esc(e.description ?? '')}</td><td class="num">${formatTaka(e.amount)}</td></tr>`;
         })
         .join('');
-      return `<tbody class="day"><tr class="day-head"><td class="date">${dayMonthBn(date)}</td><td colspan="2">${weekdayBn(date)} · ${localDigits(d.items.length)}টি খরচ</td><td class="num" style="color:${t.expense}">${formatTaka(d.total)}</td></tr>${items}</tbody>`;
+      return `<tbody class="day"><tr class="day-head"><td class="date">${dayMonth(date)}</td><td colspan="2">${weekday(date)} · ${p.expenseCount(localDigits(d.items.length))}</td><td class="num" style="color:${t.expense}">${formatTaka(d.total)}</td></tr>${items}</tbody>`;
     })
     .join('');
 
@@ -100,16 +103,19 @@ export function buildMonthReportHtml(input: MonthReportInput): string {
     .map((l) => {
       const lent = l.direction === 'LENT';
       const paid = paidOnLoan(l, input.loanPayments);
-      const back = lent ? 'ফেরত পেয়েছি' : 'শোধ করেছি';
+      const back = lent ? p.lentBack : p.borrowedBack;
       const lastPayment = paymentsOf(input.loanPayments ?? [], l.id).at(-1);
       const settledOn = l.settledDate ?? lastPayment?.date ?? null;
       const status =
         paid >= l.amount
-          ? `${back}${settledOn ? ` · ${dayMonthBn(settledOn)}` : ''}`
+          ? settledOn
+            ? p.settledOn(back, dayMonth(settledOn))
+            : back
           : paid > 0
-            ? `${formatTaka(paid)} ${back} · বাকি ${formatTaka(l.amount - paid)}`
-            : 'বাকি';
-      return `<tr><td class="date">${dayMonthBn(l.date)}</td><td style="color:${lent ? t.lent : t.borrowed}">${lent ? 'ধার দেওয়া' : 'ধার নেওয়া'}</td><td>${esc(l.personName)}${l.note ? ` <span class="muted">— ${esc(l.note)}</span>` : ''}</td><td>${status}</td><td class="num">${formatTaka(l.amount)}</td></tr>`;
+            ? p.partlyBack(formatTaka(paid), back, formatTaka(l.amount - paid))
+            : p.stillOwed;
+      const kind = lent ? strings().activity.lent : strings().activity.borrowed;
+      return `<tr><td class="date">${dayMonth(l.date)}</td><td style="color:${lent ? t.lent : t.borrowed}">${kind}</td><td>${esc(l.personName)}${l.note ? ` <span class="muted">— ${esc(l.note)}</span>` : ''}</td><td>${status}</td><td class="num">${formatTaka(l.amount)}</td></tr>`;
     })
     .join('');
 
@@ -117,12 +123,12 @@ export function buildMonthReportHtml(input: MonthReportInput): string {
   const generated = input.generatedAt ?? new Date();
 
   return `<!DOCTYPE html>
-<html lang="bn">
+<html lang="${p.htmlLang}">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="light only" />
-<title>FinTrack — ${monthName}</title>
+<title>${p.title(monthName)}</title>
 <style>
   @page { size: A4; margin: 14mm 12mm; }
   * { box-sizing: border-box; }
@@ -164,56 +170,56 @@ export function buildMonthReportHtml(input: MonthReportInput): string {
   <div class="header">
     <div>
       <h1>FinTrack</h1>
-      <div class="muted">মাসিক রিপোর্ট · ${esc(input.userName)}</div>
+      <div class="muted">${p.subtitle(esc(input.userName))}</div>
     </div>
     <div style="text-align:right">
       <div class="month">${monthName}</div>
-      <div class="muted">তৈরি: ${fullDateBn(generated.toISOString())}</div>
+      <div class="muted">${p.generatedAt(fullDate(generated.toISOString()))}</div>
     </div>
   </div>
 
   <div class="cards">
-    <div class="card"><div class="label">মোট আয়</div><div class="value" style="color:${t.income}">${formatTaka(s.monthIncome)}</div></div>
-    <div class="card"><div class="label">মোট খরচ</div><div class="value" style="color:${t.expense}">${formatTaka(s.monthDailyExpense)}</div></div>
-    <div class="card saving"><div class="label">মাসের সঞ্চয়</div><div class="value">${formatTaka(s.saving)}</div></div>
+    <div class="card"><div class="label">${b.totalIncome}</div><div class="value" style="color:${t.income}">${formatTaka(s.monthIncome)}</div></div>
+    <div class="card"><div class="label">${b.totalExpense}</div><div class="value" style="color:${t.expense}">${formatTaka(s.monthDailyExpense)}</div></div>
+    <div class="card saving"><div class="label">${b.monthSaving}</div><div class="value">${formatTaka(s.saving)}</div></div>
   </div>
 
   <div class="two">
     <div>
-      <h2>হিসাবের সারসংক্ষেপ</h2>
+      <h2>${p.summaryHeading}</h2>
       <table>${summaryTable}</table>
-      <div class="formula">সঞ্চয় = আয় − (খরচ + আনট্র্যাকড) · ক্লোজিং = ওপেনিং + সঞ্চয়</div>
+      <div class="formula">${p.formula}</div>
     </div>
     <div>
-      <h2>সম্পদ ও দায়</h2>
+      <h2>${p.positionHeading}</h2>
       <table>${positionTable}</table>
     </div>
   </div>
 
-  <h2>ক্যাটাগরি অনুযায়ী খরচ</h2>
-  <table>${categoryRows || empty('এই মাসে কোনো খরচ নেই', 4)}</table>
+  <h2>${p.categoryHeading}</h2>
+  <table>${categoryRows || empty(p.noExpenses, 4)}</table>
 
-  <h2>আয়ের তালিকা</h2>
+  <h2>${p.incomeHeading}</h2>
   <table>
-    <tr><th>তারিখ</th><th>উৎস</th><th>নোট</th><th class="num">টাকা</th></tr>
-    ${incomeRows || empty('এই মাসে কোনো আয় নেই', 4)}
-    ${incomes.length ? row('<b>মোট আয়</b>', formatTaka(s.monthIncome), { color: t.income, strong: true }).replace('<td>', '<td colspan="3">') : ''}
+    <tr><th>${p.colDate}</th><th>${p.colSource}</th><th>${p.colNote}</th><th class="num">${p.colAmount}</th></tr>
+    ${incomeRows || empty(p.noIncomes, 4)}
+    ${incomes.length ? row(`<b>${b.totalIncome}</b>`, formatTaka(s.monthIncome), { color: t.income, strong: true }).replace('<td>', '<td colspan="3">') : ''}
   </table>
 
-  <h2>দিনভিত্তিক খরচ</h2>
+  <h2>${p.expenseHeading}</h2>
   <table>
-    <tr><th>তারিখ</th><th>ক্যাটাগরি</th><th>বিবরণ</th><th class="num">টাকা</th></tr>
-    ${dayRows || empty('এই মাসে কোনো খরচ নেই', 4)}
-    ${days.length ? row('<b>মোট খরচ</b>', formatTaka(s.monthDailyExpense), { color: t.expense, strong: true }).replace('<td>', '<td colspan="3">') : ''}
+    <tr><th>${p.colDate}</th><th>${p.colCategory}</th><th>${p.colDescription}</th><th class="num">${p.colAmount}</th></tr>
+    ${dayRows || empty(p.noExpenses, 4)}
+    ${days.length ? row(`<b>${b.totalExpense}</b>`, formatTaka(s.monthDailyExpense), { color: t.expense, strong: true }).replace('<td>', '<td colspan="3">') : ''}
   </table>
 
-  <h2>এই মাসের লোন</h2>
+  <h2>${p.loanHeading}</h2>
   <table>
-    <tr><th>তারিখ</th><th>ধরন</th><th>ব্যক্তি</th><th>অবস্থা</th><th class="num">টাকা</th></tr>
-    ${loanRows || empty('এই মাসে কোনো লোন নেই', 5)}
+    <tr><th>${p.colDate}</th><th>${p.colKind}</th><th>${p.colPerson}</th><th>${p.colStatus}</th><th class="num">${p.colAmount}</th></tr>
+    ${loanRows || empty(p.noLoans, 5)}
   </table>
 
-  <div class="footer">সব টাকা বাংলাদেশি টাকায় (৳) · FinTrack থেকে তৈরি</div>
+  <div class="footer">${p.footer}</div>
 </body>
 </html>`;
 }

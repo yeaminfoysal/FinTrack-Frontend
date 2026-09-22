@@ -7,11 +7,14 @@ import { useEffect, useMemo } from 'react';
 
 import { recentDaySpends } from '@/lib/calc';
 import { todayKey } from '@/lib/date';
+import { useStrings } from '@/lib/i18n';
 import { rescheduleReminders } from '@/lib/notifications';
 import { useDataStore } from '@/stores/data';
 import { useRemindersStore } from '@/stores/reminders';
 
 export function useReminders(): void {
+  // A queued reminder carries its text, so a language switch has to schedule them again.
+  const strings = useStrings();
   const load = useRemindersStore((s) => s.load);
   const dailyEnabled = useRemindersStore((s) => s.dailyEnabled);
   const dailyMinutes = useRemindersStore((s) => s.dailyMinutes);
@@ -51,5 +54,5 @@ export function useReminders(): void {
     });
     // Loans and payments are read fresh above rather than watched: a rename or a note
     // doesn't change a single reminder, and the due signature catches what does.
-  }, [ready, loaded, dailyEnabled, dailyMinutes, loanDueEnabled, loggedToday, dueSignature, payments]);
+  }, [ready, loaded, dailyEnabled, dailyMinutes, loanDueEnabled, loggedToday, dueSignature, payments, strings]);
 }

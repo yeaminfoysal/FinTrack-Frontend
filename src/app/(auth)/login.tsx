@@ -10,6 +10,7 @@ import { Field } from '@/components/ui/field';
 import { Notice } from '@/components/ui/notice';
 import { Text } from '@/components/ui/text';
 import { textSize } from '@/constants/typography';
+import { useStrings } from '@/lib/i18n';
 import { useTheme } from '@/providers/theme-provider';
 import { useSessionStore } from '@/stores/session';
 
@@ -19,6 +20,7 @@ const SHOW_DEMO = __DEV__ || process.env.EXPO_PUBLIC_ENABLE_DEMO === 'true';
 
 export default function LoginScreen() {
   const { tokens } = useTheme();
+  const t = useStrings().auth;
   const login = useSessionStore((s) => s.login);
   const loginDemo = useSessionStore((s) => s.loginDemo);
 
@@ -31,8 +33,8 @@ export default function LoginScreen() {
 
   const submit = async () => {
     const address = email.trim();
-    const badEmail = EMAIL_RE.test(address) ? null : 'সঠিক ইমেইল ঠিকানা দিন।';
-    const badPassword = password ? null : 'পাসওয়ার্ড দিন।';
+    const badEmail = EMAIL_RE.test(address) ? null : t.badEmail;
+    const badPassword = password ? null : t.passwordRequired;
     setEmailError(badEmail);
     setPasswordError(badPassword);
     setFormError(null);
@@ -44,10 +46,10 @@ export default function LoginScreen() {
     } catch (e) {
       setFormError(
         isAxiosError(e) && !e.response
-          ? 'সার্ভারে সংযোগ করা যায়নি। ইন্টারনেট চেক করে আবার চেষ্টা করুন।'
+          ? t.offline
           : isAxiosError(e) && (e.response?.status === 401 || e.response?.status === 400)
-            ? 'ইমেইল বা পাসওয়ার্ড সঠিক নয়।'
-            : 'লগইন করা যায়নি। একটু পরে আবার চেষ্টা করুন।',
+            ? t.wrongCredentials
+            : t.loginFailed,
       );
     } finally {
       setLoading(false);
@@ -55,11 +57,11 @@ export default function LoginScreen() {
   };
 
   return (
-    <AuthShell title="FinTrack" subtitle="আপনার অ্যাকাউন্টে লগইন করুন">
-      <PageTitle title="লগইন" />
+    <AuthShell title="FinTrack" subtitle={t.loginSubtitle}>
+      <PageTitle title={t.loginPageTitle} />
       <View style={{ gap: 14 }}>
         <Field
-          label="ইমেইল"
+          label={t.email}
           value={email}
           onChangeText={(v) => {
             setEmail(v);
@@ -74,7 +76,7 @@ export default function LoginScreen() {
           error={emailError}
         />
         <Field
-          label="পাসওয়ার্ড"
+          label={t.password}
           value={password}
           onChangeText={(v) => {
             setPassword(v);
@@ -92,19 +94,19 @@ export default function LoginScreen() {
 
         <Link href="/forgot-password" asChild>
           <Pressable accessibilityRole="link" hitSlop={10} style={{ alignSelf: 'flex-end', paddingVertical: 4 }}>
-            <Text style={{ fontSize: textSize.md, fontWeight: '600', color: tokens.primary }}>পাসওয়ার্ড ভুলে গেছেন?</Text>
+            <Text style={{ fontSize: textSize.md, fontWeight: '600', color: tokens.primary }}>{t.forgotPassword}</Text>
           </Pressable>
         </Link>
 
         {formError ? <Notice text={formError} /> : null}
-        <Button label="লগইন করুন" onPress={() => void submit()} loading={loading} style={{ marginTop: 4 }} />
-        {SHOW_DEMO ? <Button label="ডেমো হিসেবে চালিয়ে যান" variant="outline" onPress={() => void loginDemo()} /> : null}
+        <Button label={t.login} onPress={() => void submit()} loading={loading} style={{ marginTop: 4 }} />
+        {SHOW_DEMO ? <Button label={t.demo} variant="outline" onPress={() => void loginDemo()} /> : null}
 
         <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 8, gap: 5 }}>
-          <Text style={{ color: tokens.muted, fontSize: textSize.md }}>অ্যাকাউন্ট নেই?</Text>
+          <Text style={{ color: tokens.muted, fontSize: textSize.md }}>{t.noAccount}</Text>
           <Link href="/register" asChild>
             <Pressable accessibilityRole="link" hitSlop={10} style={{ paddingVertical: 4 }}>
-              <Text style={{ color: tokens.primary, fontSize: textSize.md, fontWeight: '700' }}>রেজিস্টার করুন</Text>
+              <Text style={{ color: tokens.primary, fontSize: textSize.md, fontWeight: '700' }}>{t.register}</Text>
             </Pressable>
           </Link>
         </View>

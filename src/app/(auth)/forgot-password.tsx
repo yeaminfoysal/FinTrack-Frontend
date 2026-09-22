@@ -12,6 +12,7 @@ import { Text } from '@/components/ui/text';
 import { textSize } from '@/constants/typography';
 import { AuthApi } from '@/lib/api/endpoints';
 import { localDigits, toLatinDigits } from '@/lib/digits';
+import { strings, useStrings } from '@/lib/i18n';
 import { useTheme } from '@/providers/theme-provider';
 
 /** email → emailed 6-digit code → new password → done */
@@ -22,13 +23,14 @@ const MIN_PASSWORD = 8;
 // Backend throttles reset emails to one per ~50s; stay a little slower.
 const RESEND_COOLDOWN_S = 60;
 
-const OFFLINE_MESSAGE = 'সার্ভারে সংযোগ করা যায়নি। ইন্টারনেট চেক করে আবার চেষ্টা করুন।';
-
 function errorMessage(e: unknown, fallback: string): string {
-  return isAxiosError(e) && !e.response ? OFFLINE_MESSAGE : fallback;
+  return isAxiosError(e) && !e.response ? strings().auth.offline : fallback;
 }
 
 export default function ForgotPasswordScreen() {
+  const s = useStrings();
+  const str = s.auth;
+  const common = s.common;
   const router = useRouter();
 
   const [step, setStep] = useState<Step>('email');
@@ -60,7 +62,7 @@ export default function ForgotPasswordScreen() {
   const sendCode = async () => {
     const address = email.trim();
     if (!EMAIL_RE.test(address)) {
-      setError('সঠিক ইমেইল ঠিকানা দিন।');
+      setError(str.badEmail);
       return;
     }
     const isResend = step === 'code';
@@ -72,9 +74,9 @@ export default function ForgotPasswordScreen() {
       goTo('code');
       setCode('');
       setCooldown(RESEND_COOLDOWN_S);
-      if (isResend) setInfo('নতুন কোড পাঠানো হয়েছে।');
+      if (isResend) setInfo(str.codeSent);
     } catch (e) {
-      setError(errorMessage(e, 'কোড পাঠানো যায়নি। আবার চেষ্টা করুন।'));
+      setError(errorMessage(e, str.codeSendFailed));
     } finally {
       setLoading(false);
     }
@@ -82,7 +84,7 @@ export default function ForgotPasswordScreen() {
 
   const verifyCode = async () => {
     if (code.length !== 6) {
-      setError(`ইমেইলে পাওয়া ${localDigits(6)} সংখ্যার কোডটি দিন।`);
+      setError(str.codeRequired(localDigits(6)));
       return;
     }
     setError(null);
@@ -93,7 +95,7 @@ export default function ForgotPasswordScreen() {
       setResetToken(res.resetToken);
       goTo('password');
     } catch (e) {
-      setError(errorMessage(e, 'কোডটি ভুল অথবা মেয়াদ শেষ। প্রয়োজনে নতুন কোড নিন।'));
+      setError(errorMessage(e, str.codeWrong));
     } finally {
       setLoading(false);
     }
@@ -101,11 +103,11 @@ export default function ForgotPasswordScreen() {
 
   const savePassword = async () => {
     if (password.length < MIN_PASSWORD) {
-      setError(`পাসওয়ার্ড কমপক্ষে ${localDigits(MIN_PASSWORD)} অক্ষরের হতে হবে।`);
+      setError(str.passwordTooShort(localDigits(MIN_PASSWORD)));
       return;
     }
     if (password !== confirm) {
-      setError('দুটি পাসওয়ার্ড মিলছে না।');
+      setError(str.passwordMismatch);
       return;
     }
     setError(null);
@@ -120,9 +122,9 @@ export default function ForgotPasswordScreen() {
       if (isAxiosError(e) && e.response?.status === 400) {
         // The verified window lapsed — only a fresh code can continue.
         goTo('email');
-        setError('সময় শেষ হয়ে গেছে। নতুন কোড নিয়ে আবার চেষ্টা করুন।');
+        setError(str.resetExpired);
       } else {
-        setError(errorMessage(e, 'পাসওয়ার্ড সেট করা যায়নি। আবার চেষ্টা করুন।'));
+        setError(errorMessage(e, str.resetFailed));
       }
     } finally {
       setLoading(false);
@@ -130,22 +132,22 @@ export default function ForgotPasswordScreen() {
   };
 
   const subtitle = {
-    email: `অ্যাকাউন্টের ইমেইল দিন — সেখানে একটি ${localDigits(6)} সংখ্যার যাচাই কোড পাঠানো হবে`,
-    code: `${email.trim()} ঠিকানায় পাঠানো ${localDigits(6)} সংখ্যার কোডটি দিন`,
-    password: 'ইমেইল যাচাই হয়েছে — এবার নতুন পাসওয়ার্ড দিন',
-    done: 'আপনার পাসওয়ার্ড পরিবর্তন হয়েছে',
+    email: str.stepEmail(localDigits(6)),
+    code: str.stepCode(email.trim(), localDigits(6)),
+    password: str.stepPassword,
+    done: str.stepDone,
   }[step];
 
   const notice = error ? <Notice text={error} /> : info ? <Notice text={info} tone="success" /> : null;
 
   return (
-    <AuthShell title="পাসওয়ার্ড রিসেট" subtitle={subtitle}>
-      <PageTitle title="পাসওয়ার্ড রিসেট" />
+    <AuthShell title={str.resetTitle} subtitle={subtitle}>
+      <PageTitle title={str.resetTitle} />
       <View style={{ gap: 14 }}>
         {step === 'email' && (
           <>
             <Field
-              label="ইমেইল"
+              label={str.email}
               value={email}
               onChangeText={setEmail}
               placeholder="you@email.com"
@@ -157,15 +159,15 @@ export default function ForgotPasswordScreen() {
               onSubmitEditing={() => void sendCode()}
             />
             {notice}
-            <Button label="কোড পাঠান" onPress={() => void sendCode()} loading={loading} style={{ marginTop: 4 }} />
-            <Button label="ফিরে যান" variant="ghost" onPress={leave} />
+            <Button label={str.sendCode} onPress={() => void sendCode()} loading={loading} style={{ marginTop: 4 }} />
+            <Button label={common.back} variant="ghost" onPress={leave} />
           </>
         )}
 
         {step === 'code' && (
           <>
             <Field
-              label="যাচাই কোড"
+              label={str.codeLabel}
               value={code}
               onChangeText={(v) => setCode(toLatinDigits(v).replace(/\D/g, '').slice(0, 6))}
               placeholder="123456"
@@ -176,14 +178,14 @@ export default function ForgotPasswordScreen() {
               textContentType="oneTimeCode"
               returnKeyType="done"
               onSubmitEditing={() => void verifyCode()}
-              hint="ইমেইল না পেলে Spam বা Promotions ফোল্ডার দেখুন।"
+              hint={str.spamHint}
             />
             {notice}
-            <Button label="কোড যাচাই করুন" onPress={() => void verifyCode()} loading={loading} style={{ marginTop: 4 }} />
+            <Button label={str.verifyCode} onPress={() => void verifyCode()} loading={loading} style={{ marginTop: 4 }} />
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, paddingHorizontal: 2 }}>
-              <TextLink label="ইমেইল পরিবর্তন" onPress={() => goTo('email')} disabled={loading} />
+              <TextLink label={str.changeEmail} onPress={() => goTo('email')} disabled={loading} />
               <TextLink
-                label={cooldown > 0 ? `আবার পাঠানো যাবে ${localDigits(cooldown)} সেকেন্ড পরে` : 'কোড আবার পাঠান'}
+                label={cooldown > 0 ? str.resendIn(localDigits(cooldown)) : str.resend}
                 onPress={() => void sendCode()}
                 disabled={cooldown > 0 || loading}
               />
@@ -194,7 +196,7 @@ export default function ForgotPasswordScreen() {
         {step === 'password' && (
           <>
             <Field
-              label="নতুন পাসওয়ার্ড"
+              label={str.newPassword}
               value={password}
               onChangeText={setPassword}
               placeholder="••••••••"
@@ -203,13 +205,13 @@ export default function ForgotPasswordScreen() {
               maxLength={128}
               autoComplete="new-password"
               textContentType="newPassword"
-              hint={`কমপক্ষে ${localDigits(MIN_PASSWORD)} অক্ষর`}
+              hint={str.minChars(localDigits(MIN_PASSWORD))}
             />
             <Field
-              label="পাসওয়ার্ড নিশ্চিত করুন"
+              label={str.confirmPassword}
               value={confirm}
               onChangeText={setConfirm}
-              placeholder="আবার লিখুন"
+              placeholder={str.confirmPlaceholder}
               secureTextEntry
               autoCapitalize="none"
               maxLength={128}
@@ -219,15 +221,15 @@ export default function ForgotPasswordScreen() {
               onSubmitEditing={() => void savePassword()}
             />
             {notice}
-            <Button label="পাসওয়ার্ড সেট করুন" onPress={() => void savePassword()} loading={loading} style={{ marginTop: 4 }} />
-            <Button label="বাতিল" variant="ghost" onPress={leave} />
+            <Button label={str.setPassword} onPress={() => void savePassword()} loading={loading} style={{ marginTop: 4 }} />
+            <Button label={common.cancel} variant="ghost" onPress={leave} />
           </>
         )}
 
         {step === 'done' && (
           <>
-            <Notice tone="success" text="নতুন পাসওয়ার্ড দিয়ে লগইন করুন। নিরাপত্তার জন্য সব ডিভাইস থেকে লগআউট করা হয়েছে।" />
-            <Button label="লগইন করুন" onPress={() => router.replace('/login')} style={{ marginTop: 4 }} />
+            <Notice tone="success" text={str.resetDone} />
+            <Button label={str.login} onPress={() => router.replace('/login')} style={{ marginTop: 4 }} />
           </>
         )}
       </View>

@@ -15,6 +15,7 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { Icon } from '@/components/ui/icon';
 import { CATEGORY_ICON_CHOICES, DEFAULT_CATEGORY_ICON, type CategorySet } from '@/constants/categories';
 import { withAlpha } from '@/constants/tokens';
+import { useStrings } from '@/lib/i18n';
 import type { Category } from '@/lib/types';
 import { useTheme } from '@/providers/theme-provider';
 import { useDataStore } from '@/stores/data';
@@ -40,7 +41,9 @@ interface CategorySheetProps {
 
 export function CategorySheet({ visible, onClose, set, existing, onSaved, onDelete }: CategorySheetProps) {
   const isExpense = set.kind === 'EXPENSE';
-  const noun = isExpense ? 'ক্যাটাগরি' : 'উৎস';
+  const s = useStrings();
+  const t = s.categorySheet;
+  const noun = isExpense ? t.expenseNoun : t.incomeNoun;
   const { tokens } = useTheme();
   const addCategory = useDataStore((s) => s.addCategory);
   const updateCategory = useDataStore((s) => s.updateCategory);
@@ -52,20 +55,20 @@ export function CategorySheet({ visible, onClose, set, existing, onSaved, onDele
   const save = () => {
     const trimmed = label.trim();
     if (!trimmed) {
-      setError(`${noun}র নাম লিখুন।`);
+      setError(t.nameRequired(noun));
       return;
     }
     if (set.hasLabel(trimmed, existing?.id)) {
-      setError(`"${trimmed}" নামে একটি ${noun} আগে থেকেই আছে।`);
+      setError(t.duplicate(trimmed, noun));
       return;
     }
     if (existing) {
       updateCategory(existing.id, { label: trimmed, iconName });
-      showToast({ message: `${noun} আপডেট হয়েছে` });
+      showToast({ message: t.updated(noun) });
       onSaved?.(existing.id);
     } else {
       const id = addCategory({ kind: set.kind, label: trimmed, iconName });
-      showToast({ message: `${noun} যোগ হয়েছে · ${trimmed}` });
+      showToast({ message: t.added(noun, trimmed) });
       onSaved?.(id);
     }
     onClose();
@@ -75,29 +78,29 @@ export function CategorySheet({ visible, onClose, set, existing, onSaved, onDele
     <BottomSheet
       visible={visible}
       onClose={onClose}
-      title={existing ? `${noun} এডিট করুন` : `নতুন ${noun}`}
+      title={existing ? t.editTitle(noun) : t.newTitle(noun)}
       scroll
       gap={14}>
       <Field
-        label={`${noun}র নাম`}
+        label={t.nameLabel(noun)}
         value={label}
         onChangeText={(v) => {
           setLabel(v);
           setError(null);
         }}
-        placeholder={isExpense ? 'যেমন: মোবাইল রিচার্জ' : 'যেমন: টিউশন'}
+        placeholder={isExpense ? t.expensePlaceholder : t.incomePlaceholder}
         maxLength={MAX_LABEL}
         autoFocus
         error={error}
       />
       <View style={{ gap: 8 }}>
-        <FieldLabel>আইকন</FieldLabel>
+        <FieldLabel>{t.icon}</FieldLabel>
         <IconGrid value={iconName} onChange={setIconName} />
       </View>
-      <Button label={existing ? 'পরিবর্তন সেভ করুন' : `${noun} যোগ করুন`} icon="checkmark" onPress={save} />
+      <Button label={existing ? s.common.saveChanges : t.addButton(noun)} icon="checkmark" onPress={save} />
       {existing && onDelete ? (
         <Button
-          label="ডিলিট করুন"
+          label={s.common.deleteButton}
           icon="trash-outline"
           variant="outline"
           color={tokens.expense}
@@ -113,8 +116,9 @@ export function CategorySheet({ visible, onClose, set, existing, onSaved, onDele
 
 function IconGrid({ value, onChange }: { value: string; onChange: (iconName: string) => void }) {
   const { tokens } = useTheme();
+  const iconLabel = useStrings().categorySheet.icon;
   return (
-    <View accessibilityRole="radiogroup" accessibilityLabel="আইকন" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+    <View accessibilityRole="radiogroup" accessibilityLabel={iconLabel} style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
       {CATEGORY_ICON_CHOICES.map(({ iconName, icon }) => {
         const selected = iconName === value;
         return (

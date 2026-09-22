@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, Platform, StyleSheet } from 'react-native';
 
 import { Text } from '@/components/ui/text';
+import { useStrings } from '@/lib/i18n';
 import { textSize } from '@/constants/typography';
 
 /** The ৳ set in Hind Siliguri Bold — the same mark the auth screens put in their
@@ -32,6 +33,7 @@ const FADE_OUT = 300;
 const NATIVE_DRIVER = Platform.OS !== 'web';
 
 export function BrandSplash({ onHidden }: { onHidden: () => void }) {
+  const tagline = useStrings().brand.tagline;
   // Lazy useState, not useRef: the values have to survive re-renders without being
   // read during one, since the auth gate re-renders this tree while the splash is up.
   const [word] = useState(() => new Animated.Value(0));
@@ -86,7 +88,7 @@ export function BrandSplash({ onHidden }: { onHidden: () => void }) {
           },
         ]}>
         <Text style={styles.wordmark}>FinTrack</Text>
-        <Text style={styles.tagline}>হিসাব থাকুক হাতের মুঠোয়</Text>
+        <Text style={styles.tagline}>{tagline}</Text>
       </Animated.View>
     </Animated.View>
   );

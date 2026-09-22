@@ -17,21 +17,26 @@ import { builtinsOf } from '@/constants/categories';
 import { textSize } from '@/constants/typography';
 import { useCategorySet } from '@/hooks/use-categories';
 import { localDigits } from '@/lib/digits';
+import { useStrings } from '@/lib/i18n';
 import type { Category, CategoryKind } from '@/lib/types';
 import { useTheme } from '@/providers/theme-provider';
 import { useDataStore } from '@/stores/data';
 import { confirmDialog, showToast } from '@/stores/ui';
 
-const KIND_OPTIONS: { value: CategoryKind; label: string }[] = [
-  { value: 'EXPENSE', label: 'খরচের ক্যাটাগরি' },
-  { value: 'INCOME', label: 'আয়ের উৎস' },
-];
-
 export default function CategoriesScreen() {
   const { tokens } = useTheme();
+  const strings = useStrings();
+  const t = strings.categoriesScreen;
   const [kind, setKind] = useState<CategoryKind>('EXPENSE');
+  const kindOptions = useMemo<{ value: CategoryKind; label: string }[]>(
+    () => [
+      { value: 'EXPENSE', label: t.expenseKind },
+      { value: 'INCOME', label: t.incomeKind },
+    ],
+    [t],
+  );
   const set = useCategorySet(kind);
-  const noun = kind === 'EXPENSE' ? 'ক্যাটাগরি' : 'উৎস';
+  const noun = kind === 'EXPENSE' ? strings.categorySheet.expenseNoun : strings.categorySheet.incomeNoun;
 
   // null = the sheet is closed, undefined inside it = "add new".
   const [editing, setEditing] = useState<{ category?: Category } | null>(null);
@@ -54,38 +59,35 @@ export default function CategoriesScreen() {
 
   const usageLabel = (key: string) => {
     const count = usage.get(key) ?? 0;
-    return count === 0 ? 'কোনো এন্ট্রি নেই' : `${localDigits(count)}টি এন্ট্রি`;
+    return count === 0 ? t.noEntries : t.entryCount(localDigits(count));
   };
 
   const remove = async (category: Category) => {
     const count = usage.get(category.id) ?? 0;
     const confirmed = await confirmDialog({
-      title: `"${category.label}" মুছবেন?`,
-      message:
-        count > 0
-          ? `এই ${noun}টি আর তালিকায় আসবে না। ${localDigits(count)}টি পুরোনো এন্ট্রি মুছবে না — সেগুলোতে নামটি দেখা যাবে।`
-          : `এই ${noun}টি আর তালিকায় আসবে না।`,
-      confirmLabel: 'মুছুন',
+      title: t.deleteTitle(category.label),
+      message: count > 0 ? t.deleteWithEntries(noun, localDigits(count)) : t.deleteEmpty(noun),
+      confirmLabel: strings.common.remove,
       destructive: true,
     });
     if (!confirmed) return;
     deleteCategory(category.id);
     showToast({
-      message: `${noun} মুছে ফেলা হয়েছে`,
-      actionLabel: 'ফিরিয়ে নিন',
+      message: t.deleted(noun),
+      actionLabel: strings.common.undo,
       onAction: () => restoreCategory(category.id),
     });
   };
 
   return (
-    <ModalShell title="ক্যাটাগরি">
-      <PageTitle title="ক্যাটাগরি" />
-      <Segmented options={KIND_OPTIONS} value={kind} onChange={setKind} accessibilityLabel="ক্যাটাগরির ধরন" />
+    <ModalShell title={t.title}>
+      <PageTitle title={t.title} />
+      <Segmented options={kindOptions} value={kind} onChange={setKind} accessibilityLabel={t.kindA11y} />
 
-      <Section label={`আপনার ${noun}`}>
+      <Section label={t.yoursHeading(noun)}>
         {set.custom.length === 0 ? (
           <Text style={{ fontSize: textSize.sm, lineHeight: 20, color: tokens.muted, marginLeft: 2 }}>
-            নিজের মতো {noun} যোগ করুন — খরচ বা আয় লেখার সময়ও সেটা তালিকায় আসবে।
+            {t.yoursNote(noun)}
           </Text>
         ) : (
           <ListGroup>
@@ -98,21 +100,21 @@ export default function CategoriesScreen() {
                 tint={tokens.primary}
                 divider={index > 0}
                 onPress={() => setEditing({ category })}
-                accessibilityHint="নাম, আইকন বদলান বা মুছুন"
+                accessibilityHint={t.rowHint}
                 trailing={<Icon name="chevron-forward" size={18} color={tokens.muted} />}
               />
             ))}
           </ListGroup>
         )}
         <Button
-          label={`নতুন ${noun} যোগ করুন`}
+          label={t.addNew(noun)}
           icon="add"
           variant="secondary"
           onPress={() => setEditing({})}
         />
       </Section>
 
-      <Section label={`ডিফল্ট ${noun}`}>
+      <Section label={t.defaultsHeading(noun)}>
         <ListGroup>
           {builtinsOf(kind).map((option, index) => (
             <ListRow
@@ -125,7 +127,7 @@ export default function CategoriesScreen() {
           ))}
         </ListGroup>
         <Text style={{ fontSize: textSize.sm, lineHeight: 18, color: tokens.muted, marginLeft: 2 }}>
-          ডিফল্টগুলো বদলানো বা মোছা যায় না।
+          {t.defaultsNote}
         </Text>
       </Section>
 

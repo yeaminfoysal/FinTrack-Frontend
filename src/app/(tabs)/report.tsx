@@ -17,7 +17,7 @@ import { useDashboard } from '@/hooks/use-dashboard';
 import { categoryTotals, computeDashboard } from '@/lib/calc';
 import {
   currentMonthKey,
-  monthLabelBn,
+  monthLabel,
   monthName,
   monthsEndingAt,
   nextMonthKey,
@@ -25,6 +25,7 @@ import {
   type MonthKey,
 } from '@/lib/date';
 import { localDigits } from '@/lib/digits';
+import { useStrings } from '@/lib/i18n';
 import { formatTaka } from '@/lib/money';
 import { buildMonthReportHtml } from '@/lib/report-html';
 import { saveReportPdf, shareReportPdf } from '@/lib/report-pdf';
@@ -37,6 +38,9 @@ const TREND_MONTHS = 6;
 
 export default function ReportScreen() {
   const { tokens } = useTheme();
+  const strings = useStrings();
+  const t = strings.reportScreen;
+  const b = strings.balance;
   const thisMonth = currentMonthKey();
   const [monthKey, setMonthKey] = useState<MonthKey>(thisMonth);
   const months = useMonthsWithData();
@@ -80,7 +84,7 @@ export default function ReportScreen() {
   );
 
   const isCurrent = monthKey === thisMonth;
-  const monthTitle = isCurrent ? 'এই মাসের' : `${monthName(parseMonthKey(monthKey).month)} মাসের`;
+  const monthTitle = isCurrent ? t.thisMonth : t.namedMonth(monthName(parseMonthKey(monthKey).month));
   const closing = snapshot.opening + snapshot.saving;
   const spent = snapshot.monthDailyExpense + Math.max(snapshot.untracked, 0);
   const savedPct = snapshot.monthIncome > 0 ? Math.max(0, Math.min(100, (snapshot.saving / snapshot.monthIncome) * 100)) : 0;
@@ -103,13 +107,13 @@ export default function ReportScreen() {
         await shareReportPdf(html, monthKey);
       } else {
         const saved = await saveReportPdf(html, monthKey);
-        if (saved.status === 'saved') showToast({ message: `PDF সেভ হয়েছে · "${saved.folder}" ফোল্ডারে` });
+        if (saved.status === 'saved') showToast({ message: t.savedToFolder(saved.folder) });
       }
     } catch (e) {
       console.warn('[report] PDF export failed:', e);
       showToast({
         tone: 'error',
-        message: `PDF তৈরি করা যায়নি। ${e instanceof Error ? e.message : 'আবার চেষ্টা করুন।'}`,
+        message: t.pdfFailed(e instanceof Error ? e.message : t.tryAgain),
       });
     } finally {
       setExporting(null);
@@ -118,7 +122,7 @@ export default function ReportScreen() {
 
   return (
     <Screen>
-      <PageTitle title="রিপোর্ট" />
+      <PageTitle title={strings.tabs.report} />
       <View
         style={{
           flexDirection: 'row',
@@ -130,10 +134,10 @@ export default function ReportScreen() {
         }}>
         <View style={{ flex: 1 }}>
           <Text accessibilityRole="header" numberOfLines={1} style={{ fontSize: textSize.xl, fontWeight: '700', color: tokens.ink }}>
-            মাসিক রিপোর্ট
+            {t.title}
           </Text>
           <Text numberOfLines={1} style={{ fontSize: textSize.sm, color: tokens.muted }}>
-            আয়, খরচ ও সঞ্চয়ের হিসাব
+            {t.subtitle}
           </Text>
         </View>
         <MonthSwitcher value={monthKey} onChange={setMonthKey} months={months} />
@@ -141,7 +145,7 @@ export default function ReportScreen() {
 
       {/* Saving hero */}
       <View style={{ borderRadius: 20, padding: 18, backgroundColor: tokens.primaryFill, marginBottom: 16 }}>
-        <Text style={{ fontSize: textSize.md, color: tokens.onFill }}>{monthTitle} সঞ্চয়</Text>
+        <Text style={{ fontSize: textSize.md, color: tokens.onFill }}>{t.savingOf(monthTitle)}</Text>
         <AmountText
           paisa={snapshot.saving}
           size="display"
@@ -152,31 +156,31 @@ export default function ReportScreen() {
         />
         <View
           accessible
-          accessibilityLabel={`আয়ের ${localDigits(Math.round(savedPct))}% সঞ্চয় হয়েছে`}
+          accessibilityLabel={t.savedPctA11y(localDigits(Math.round(savedPct)))}
           style={{ flexDirection: 'row', height: 10, borderRadius: 6, overflow: 'hidden', backgroundColor: 'rgba(0,0,0,0.22)' }}>
           <View style={{ width: `${savedPct}%`, backgroundColor: tokens.onFill }} />
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 8 }}>
-          <Text style={{ fontSize: textSize.sm, color: tokens.onFill }}>আয় {formatTaka(snapshot.monthIncome)}</Text>
-          <Text style={{ fontSize: textSize.sm, color: tokens.onFill }}>খরচ {formatTaka(spent)}</Text>
+          <Text style={{ fontSize: textSize.sm, color: tokens.onFill }}>{t.incomeChip(formatTaka(snapshot.monthIncome))}</Text>
+          <Text style={{ fontSize: textSize.sm, color: tokens.onFill }}>{t.expenseChip(formatTaka(spent))}</Text>
         </View>
       </View>
 
       {/* Summary */}
       <ListGroup>
-        <BreakRow label="ওপেনিং ব্যালেন্স" value={formatTaka(snapshot.opening)} color={tokens.ink} />
-        <BreakRow divider label="মোট আয়" value={`+ ${formatTaka(snapshot.monthIncome)}`} color={tokens.income} />
-        <BreakRow divider label="দৈনিক খরচ" value={`− ${formatTaka(snapshot.monthDailyExpense)}`} color={tokens.expense} />
-        <BreakRow divider label="পাওনা (বাকি)" value={formatTaka(snapshot.outstandingLent)} color={tokens.lent} />
-        <BreakRow divider label="দেনা (বাকি)" value={formatTaka(snapshot.outstandingBorrowed)} color={tokens.borrowed} />
+        <BreakRow label={b.opening} value={formatTaka(snapshot.opening)} color={tokens.ink} />
+        <BreakRow divider label={b.totalIncome} value={`+ ${formatTaka(snapshot.monthIncome)}`} color={tokens.income} />
+        <BreakRow divider label={b.dailyExpense} value={`− ${formatTaka(snapshot.monthDailyExpense)}`} color={tokens.expense} />
+        <BreakRow divider label={b.outstandingLent} value={formatTaka(snapshot.outstandingLent)} color={tokens.lent} />
+        <BreakRow divider label={b.outstandingBorrowed} value={formatTaka(snapshot.outstandingBorrowed)} color={tokens.borrowed} />
         <BreakRow
           divider
-          label={snapshot.untracked < 0 ? 'আনট্র্যাকড আয়' : 'আনট্র্যাকড খরচ'}
+          label={snapshot.untracked < 0 ? b.untrackedIncome : b.untrackedExpense}
           value={formatTaka(Math.abs(snapshot.untracked))}
           color={snapshot.untracked < 0 ? tokens.income : tokens.borrowed}
         />
-        <BreakRow divider label="নেট ওয়ার্থ" value={formatTaka(snapshot.netWorth)} color={tokens.ink} />
-        <BreakRow divider strong label="ক্লোজিং ব্যালেন্স" value={formatTaka(closing)} color={tokens.ink} />
+        <BreakRow divider label={b.netWorth} value={formatTaka(snapshot.netWorth)} color={tokens.ink} />
+        <BreakRow divider strong label={b.closing} value={formatTaka(closing)} color={tokens.ink} />
       </ListGroup>
 
       <Card
@@ -185,40 +189,41 @@ export default function ReportScreen() {
         style={{ marginTop: 14, borderStyle: 'dashed', paddingVertical: 12, paddingHorizontal: 15, flexDirection: 'row', gap: 10 }}>
         <Icon name="repeat-outline" size={18} color={tokens.muted} />
         <Text style={{ flex: 1, fontSize: textSize.sm, color: tokens.muted, lineHeight: 19 }}>
-          <Text style={{ color: tokens.ink, fontWeight: '700' }}>ক্যারি ফরোয়ার্ড:</Text> {nextOpeningLabel} মাসের ওপেনিং ={' '}
+          <Text style={{ color: tokens.ink, fontWeight: '700' }}>{t.carryForwardLabel}</Text>
+          {t.carryForward(nextOpeningLabel)}
           {formatTaka(snapshot.opening)} + {formatTaka(snapshot.saving)} ={' '}
           <Text style={{ color: tokens.ink, fontWeight: '600' }}>{formatTaka(closing)}</Text>
         </Text>
       </Card>
 
       {/* Category chart */}
-      <SectionHeader title="ক্যাটাগরি অনুযায়ী খরচ" />
+      <SectionHeader title={t.categoryHeading} />
       <Card padding={16}>
         {categories.length > 0 ? (
           <CategoryBars items={categories} />
         ) : (
           <Text style={{ fontSize: textSize.sm, color: tokens.muted, textAlign: 'center', paddingVertical: 6 }}>
-            এই মাসে কোনো খরচ লেখা হয়নি।
+            {t.noExpenses}
           </Text>
         )}
       </Card>
 
       {/* Saving trend */}
-      <SectionHeader title={`${localDigits(TREND_MONTHS)} মাসের সঞ্চয়`} />
+      <SectionHeader title={t.trendHeading(localDigits(TREND_MONTHS))} />
       <Card padding={16}>
         <SavingBars months={trend} selected={monthKey} onSelect={setMonthKey} />
         <View style={{ height: 1, backgroundColor: tokens.line, marginVertical: 12 }} />
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
-          <TrendStat label={`${localDigits(TREND_MONTHS)} মাসে মোট`} paisa={trendTotal} />
-          <TrendStat label="মাসে গড়" paisa={trendAverage} alignEnd />
+          <TrendStat label={t.trendTotal(localDigits(TREND_MONTHS))} paisa={trendTotal} />
+          <TrendStat label={t.trendAverage} paisa={trendAverage} alignEnd />
         </View>
       </Card>
 
       {/* History */}
-      <SectionHeader title="মাসের ইতিহাস" />
+      <SectionHeader title={t.historyHeading} />
       {history.length === 0 ? (
         <Text style={{ color: tokens.muted, fontSize: textSize.sm, lineHeight: 20, paddingHorizontal: 4 }}>
-          এখনো কোনো মাস শেষ হয়নি — মাস শেষ হলে এখানে তার সারসংক্ষেপ দেখাবে।
+          {t.noHistory}
         </Text>
       ) : (
         <ListGroup>
@@ -229,11 +234,11 @@ export default function ReportScreen() {
       )}
 
       <Text style={{ marginTop: 22, marginBottom: 10, fontSize: textSize.sm, color: tokens.muted, textAlign: 'center' }}>
-        {monthLabelBn(monthKey)}-এর পূর্ণ রিপোর্ট — সারসংক্ষেপ, আয়, দিনভিত্তিক খরচ ও লোন
+        {t.fullReport(monthLabel(monthKey))}
       </Text>
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <Button
-          label="PDF শেয়ার"
+          label={t.share}
           icon="share-outline"
           loading={exporting === 'share'}
           disabled={exporting === 'save'}
@@ -241,7 +246,7 @@ export default function ReportScreen() {
           style={{ flex: 1 }}
         />
         <Button
-          label="PDF সেভ"
+          label={t.savePdf}
           icon="download-outline"
           variant="outline"
           loading={exporting === 'save'}
@@ -312,21 +317,22 @@ function HistoryRow({
   onSelect: (key: MonthKey) => void;
 }) {
   const { tokens } = useTheme();
+  const strings = useStrings();
+  const t = strings.reportScreen;
   const key = `${summary.year}-${String(summary.month).padStart(2, '0')}`;
   const untrackedIncome = summary.untrackedExpense < 0;
   return (
     <ListRow
-      title={monthLabelBn(key)}
+      title={monthLabel(key)}
       divider={divider}
       selected={key === selectedMonth}
       onPress={() => onSelect(key)}
-      accessibilityHint="এই মাসের রিপোর্ট দেখাবে"
-      subtitle={
-        <>
-          খরচ <Text style={{ color: tokens.expense }}>{formatTaka(summary.totalDailyExpense)}</Text> ·{' '}
-          {untrackedIncome ? 'আনট্র্যাকড আয়' : 'আনট্র্যাকড'} {formatTaka(Math.abs(summary.untrackedExpense))}
-        </>
-      }
+      accessibilityHint={t.historyHint}
+      subtitle={t.historyLine(
+        formatTaka(summary.totalDailyExpense),
+        untrackedIncome ? strings.balance.untrackedIncome : t.untrackedShort,
+        formatTaka(Math.abs(summary.untrackedExpense)),
+      )}
       trailing={
         <View style={{ alignItems: 'flex-end', gap: 1 }}>
           <AmountText
@@ -334,7 +340,7 @@ function HistoryRow({
             signed
             color={summary.monthlySaving >= 0 ? tokens.income : tokens.expense}
           />
-          <Text style={{ fontSize: textSize.xs, color: tokens.muted }}>শেষে {formatTaka(summary.closingBalance)}</Text>
+          <Text style={{ fontSize: textSize.xs, color: tokens.muted }}>{t.closingLine(formatTaka(summary.closingBalance))}</Text>
         </View>
       }
     />

@@ -2,32 +2,21 @@
  * Date & month-boundary helpers. Month boundaries use the device local
  * timezone (client is the calculation authority). Dates stored as ISO-8601.
  * Every number shown goes through localDigits (one numeral system app-wide).
+ *
+ * Anything with a name in it (a month, a weekday, "just now") reads the current
+ * language's catalogue, so these stay plain functions the whole app can call.
  */
 import { localDigits } from '@/lib/digits';
-
-const BN_MONTHS = [
-  'জানুয়ারি',
-  'ফেব্রুয়ারি',
-  'মার্চ',
-  'এপ্রিল',
-  'মে',
-  'জুন',
-  'জুলাই',
-  'আগস্ট',
-  'সেপ্টেম্বর',
-  'অক্টোবর',
-  'নভেম্বর',
-  'ডিসেম্বর',
-];
-
-/** Full weekday names, Sunday first (same order as Date#getDay). */
-export const BN_WEEKDAYS = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
-
-/** Short weekday names for calendar headers, Sunday first (same order as Date#getDay). */
-export const BN_WEEKDAYS_SHORT = ['রবি', 'সোম', 'মঙ্গল', 'বুধ', 'বৃহঃ', 'শুক্র', 'শনি'];
+import { strings } from '@/lib/i18n';
 
 export type MonthKey = string; // "YYYY-MM"
 export type DayKey = string; // "YYYY-MM-DD" (local)
+
+/** Full weekday names, Sunday first (same order as Date#getDay). */
+export const weekdayNames = (): string[] => strings().date.weekdays;
+
+/** Short weekday names for calendar headers, Sunday first (same order as Date#getDay). */
+export const weekdayNamesShort = (): string[] => strings().date.weekdaysShort;
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -73,33 +62,35 @@ export function nextMonthKey(key: MonthKey): MonthKey {
   return monthKeyOf(new Date(year, month, 1));
 }
 
-/** "জুন 2026" */
-export function monthLabelBn(key: MonthKey): string {
+/** "জুন 2026" · "June 2026" */
+export function monthLabel(key: MonthKey): string {
   const { year, month } = parseMonthKey(key);
-  return `${BN_MONTHS[month - 1]} ${localDigits(year)}`;
+  const t = strings().date;
+  return t.monthYear(t.months[month - 1], localDigits(year));
 }
 
-/** "18 জুন" from an ISO date. */
-export function dayMonthBn(iso: string): string {
+/** "18 জুন" · "18 June" from an ISO date. */
+export function dayMonth(iso: string): string {
   const d = new Date(iso);
-  return `${localDigits(d.getDate())} ${BN_MONTHS[d.getMonth()]}`;
+  const t = strings().date;
+  return t.dayMonth(localDigits(d.getDate()), t.months[d.getMonth()]);
 }
 
-/** "18 জুন 2026" */
-export function fullDateBn(iso: string): string {
+/** "18 জুন 2026" · "18 June 2026" */
+export function fullDate(iso: string): string {
   const d = new Date(iso);
-  return `${localDigits(d.getDate())} ${BN_MONTHS[d.getMonth()]} ${localDigits(d.getFullYear())}`;
+  const t = strings().date;
+  return t.fullDate(localDigits(d.getDate()), t.months[d.getMonth()], localDigits(d.getFullYear()));
 }
 
+/** Full name of a 1-based month. */
 export function monthName(month: number): string {
-  return BN_MONTHS[month - 1] ?? '';
+  return strings().date.months[month - 1] ?? '';
 }
 
-const BN_MONTHS_SHORT = ['জানু', 'ফেব্রু', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টে', 'অক্টো', 'নভে', 'ডিসে'];
-
-/** Short month name for chart labels: "সেপ্টে". */
-export function monthShortBn(key: MonthKey): string {
-  return BN_MONTHS_SHORT[parseMonthKey(key).month - 1] ?? '';
+/** Short month name for chart labels: "সেপ্টে" · "Sep". */
+export function monthShort(key: MonthKey): string {
+  return strings().date.monthsShort[parseMonthKey(key).month - 1] ?? '';
 }
 
 /** The `count` months that end with `end`, oldest first. */
@@ -136,14 +127,14 @@ export function dayKeyToIso(day: DayKey): string {
   return new Date(y, m - 1, d, 12, 0, 0).toISOString();
 }
 
-/** "রবিবার" from an ISO date. */
-export function weekdayBn(iso: string): string {
-  return BN_WEEKDAYS[new Date(iso).getDay()];
+/** "রবিবার" · "Sunday" from an ISO date. */
+export function weekday(iso: string): string {
+  return strings().date.weekdays[new Date(iso).getDay()];
 }
 
-/** "রবি" from an ISO date — the short form used under chart columns. */
-export function weekdayShortBn(iso: string): string {
-  return BN_WEEKDAYS_SHORT[new Date(iso).getDay()];
+/** "রবি" · "Sun" from an ISO date — the short form used under chart columns. */
+export function weekdayShort(iso: string): string {
+  return strings().date.weekdaysShort[new Date(iso).getDay()];
 }
 
 /** Whole days from `from` to `to` — negative when `to` is the earlier day. */
@@ -162,13 +153,14 @@ export function daysInMonth(key: MonthKey): number {
 }
 
 /** "এইমাত্র" / "5 মিনিট আগে" / "3 ঘণ্টা আগে" / "গতকাল" / a full date. */
-export function relativeTimeBn(iso: string, now: Date = new Date()): string {
+export function relativeTime(iso: string, now: Date = new Date()): string {
+  const t = strings();
   const then = new Date(iso);
   const seconds = Math.round((now.getTime() - then.getTime()) / 1000);
-  if (seconds < 60) return 'এইমাত্র';
-  if (seconds < 3600) return `${localDigits(Math.floor(seconds / 60))} মিনিট আগে`;
+  if (seconds < 60) return t.date.justNow;
+  if (seconds < 3600) return t.date.minutesAgo(localDigits(Math.floor(seconds / 60)));
   const today = dayKeyOfDate(now);
-  if (dayKeyOfDate(then) === today) return `${localDigits(Math.floor(seconds / 3600))} ঘণ্টা আগে`;
-  if (dayKeyOfDate(then) === shiftDayKey(today, -1)) return 'গতকাল';
-  return fullDateBn(iso);
+  if (dayKeyOfDate(then) === today) return t.date.hoursAgo(localDigits(Math.floor(seconds / 3600)));
+  if (dayKeyOfDate(then) === shiftDayKey(today, -1)) return t.common.yesterday;
+  return fullDate(iso);
 }

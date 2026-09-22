@@ -1,5 +1,6 @@
 import type { IconName } from '@/components/ui/icon';
 import { localDigits } from '@/lib/digits';
+import { useStrings } from '@/lib/i18n';
 import { countPending, DEMO_OWNER, useDataStore } from '@/stores/data';
 import { useSyncStore } from '@/stores/sync';
 
@@ -25,38 +26,39 @@ export function useSyncStatus(): SyncStatusView {
   const syncNow = useSyncStore((s) => s.syncNow);
   const isDemo = useDataStore((s) => s.ownerEmail === DEMO_OWNER);
   const pending = useDataStore(countPending);
-  const left = `${localDigits(pending)}টি বাকি`;
+  const t = useStrings().sync;
+  const left = t.left(localDigits(pending));
 
   let tone: SyncTone;
   let label: string;
   let icon: IconName;
   if (isDemo) {
     tone = 'demo';
-    label = 'ডেমো মোড';
+    label = t.demoMode;
     icon = 'flask-outline';
   } else if (isSyncing) {
     tone = 'busy';
-    label = 'সিঙ্ক হচ্ছে…';
+    label = t.syncing;
     icon = 'sync-outline';
   } else if (phase === 'offline') {
     tone = 'offline';
-    label = pending > 0 ? `অফলাইন · ${left}` : 'অফলাইন';
+    label = pending > 0 ? t.offlineWithPending(left) : t.offline;
     icon = 'cloud-offline-outline';
   } else if (phase === 'error') {
     tone = 'error';
-    label = pending > 0 ? `সিঙ্ক হয়নি · ${left}` : 'সিঙ্ক হয়নি';
+    label = pending > 0 ? t.failedWithPending(left) : t.failed;
     icon = 'alert-circle-outline';
   } else if (pending > 0) {
     tone = 'pending';
-    label = `${localDigits(pending)}টি সিঙ্ক বাকি`;
+    label = t.pending(localDigits(pending));
     icon = 'cloud-upload-outline';
   } else if (!lastSyncedAt) {
     tone = 'pending';
-    label = 'এখনো সিঙ্ক হয়নি';
+    label = t.neverSynced;
     icon = 'cloud-upload-outline';
   } else {
     tone = 'ok';
-    label = 'সিঙ্ক হয়েছে';
+    label = t.synced;
     icon = 'cloud-done-outline';
   }
 

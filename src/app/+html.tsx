@@ -23,6 +23,8 @@ body { background-color: ${backdrop.light}; }
 }
 `;
 
+// The app's own language isn't known until the client reads it, so `lang` below is only
+// the default; src/lib/i18n keeps document.documentElement.lang in step from there.
 export default function Root({ children }: PropsWithChildren) {
   return (
     <html lang="bn">

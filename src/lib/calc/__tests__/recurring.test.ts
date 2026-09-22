@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { dueOccurrences, frequencyLabelBn, MAX_CATCH_UP, occurrenceId } from '@/lib/calc/recurring';
+import { dueOccurrences, frequencyLabel, MAX_CATCH_UP, occurrenceId } from '@/lib/calc/recurring';
 import { localDigits } from '@/lib/digits';
 import { at, recurring, tk } from '@/test/factories';
 
@@ -76,11 +76,11 @@ describe('occurrenceId', () => {
   });
 });
 
-describe('frequencyLabelBn', () => {
+describe('frequencyLabel', () => {
   it('says how often in one phrase', () => {
-    expect(frequencyLabelBn({ frequency: 'DAILY', anchor: 0 })).toBe('প্রতিদিন');
-    expect(frequencyLabelBn({ frequency: 'WEEKLY', anchor: 5 })).toBe('প্রতি শুক্রবার');
+    expect(frequencyLabel({ frequency: 'DAILY', anchor: 0 })).toBe('প্রতিদিন');
+    expect(frequencyLabel({ frequency: 'WEEKLY', anchor: 5 })).toBe('প্রতি শুক্রবার');
     // The day goes through localDigits, so it follows whatever numeral system the app shows.
-    expect(frequencyLabelBn({ frequency: 'MONTHLY', anchor: 1 })).toBe(`প্রতি মাসের ${localDigits(1)} তারিখে`);
+    expect(frequencyLabel({ frequency: 'MONTHLY', anchor: 1 })).toBe(`প্রতি মাসের ${localDigits(1)} তারিখে`);
   });
 });

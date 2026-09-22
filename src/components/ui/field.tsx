@@ -12,6 +12,7 @@ import { useScrollFocusedIntoView } from '@/components/ui/keyboard-scroll-view';
 import { Text } from '@/components/ui/text';
 import { FONT_FAMILY } from '@/constants/fonts';
 import { textSize } from '@/constants/typography';
+import { useStrings } from '@/lib/i18n';
 import { useTheme } from '@/providers/theme-provider';
 
 interface FieldProps {
@@ -59,6 +60,7 @@ export function Field({
   hint,
 }: FieldProps) {
   const { tokens } = useTheme();
+  const t = useStrings().ui;
   const [focused, setFocused] = useState(false);
   const [revealed, setRevealed] = useState(false);
   // Tapping a second field leaves the keyboard where it is, so the scroll view is only
@@ -117,7 +119,7 @@ export function Field({
         {secureTextEntry ? (
           <IconButton
             icon={revealed ? 'eye-off-outline' : 'eye-outline'}
-            label={revealed ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখুন'}
+            label={revealed ? t.hidePassword : t.showPassword}
             variant="plain"
             color={tokens.muted}
             onPress={() => setRevealed((r) => !r)}

@@ -4,12 +4,14 @@ import { Modal, Pressable, View } from 'react-native';
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { textSize } from '@/constants/typography';
+import { useStrings } from '@/lib/i18n';
 import { useTheme } from '@/providers/theme-provider';
 import { useUiStore, type ConfirmDialog } from '@/stores/ui';
 
 /** In-app confirm dialog (Alert.alert does nothing on web). Mounted once in the root layout. */
 export function DialogHost() {
   const { tokens } = useTheme();
+  const t = useStrings().common;
   const dialog = useUiStore((s) => s.dialog);
   const closeDialog = useUiStore((s) => s.closeDialog);
   // Keep the last dialog's text on screen while the modal fades out.
@@ -47,13 +49,13 @@ export function DialogHost() {
           ) : null}
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
             <Button
-              label={shown?.cancelLabel ?? 'বাতিল'}
+              label={shown?.cancelLabel ?? t.cancel}
               variant="secondary"
               onPress={() => closeDialog(false)}
               style={{ flex: 1 }}
             />
             <Button
-              label={shown?.confirmLabel ?? 'ঠিক আছে'}
+              label={shown?.confirmLabel ?? t.confirm}
               variant={shown?.destructive ? 'danger' : 'primary'}
               onPress={() => closeDialog(true)}
               style={{ flex: 1 }}
