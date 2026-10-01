@@ -226,6 +226,12 @@ const en: Strings = {
     mfsSubtitle: 'bKash, Nagad, Rocket',
     countedAt: (when) => `Last counted · ${when}`,
     update: 'Update balance',
+    monthA11y: 'Which month to count',
+    introEnded: (month) =>
+      `Enter what was in hand, in the bank and in mobile banking on the last day of ${month} — that gives ${month}'s unwritten spending, and the next month's opening follows from it.`,
+    minusEnded: '− Had at month end',
+    hintNoneEnded: 'Enter what you had at month end and any unwritten spending shows up here.',
+    savedEnded: (month) => `${month} balance updated`,
   },
 
   recurringSheet: {
@@ -439,6 +445,7 @@ const en: Strings = {
     historyLine: (expense, untrackedLabel, untracked) => `Spent ${expense} · ${untrackedLabel} ${untracked}`,
     untrackedShort: 'Untracked',
     closingLine: (amount) => `Ended at ${amount}`,
+    enterBalance: 'Add balance',
   },
 
   settings: {

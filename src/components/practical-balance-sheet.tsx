@@ -7,36 +7,88 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Field } from '@/components/ui/field';
 import { ListGroup, ListRow } from '@/components/ui/list-row';
+import { Segmented } from '@/components/ui/segmented';
 import { Text } from '@/components/ui/text';
 import { textSize } from '@/constants/typography';
 import { useDashboard } from '@/hooks/use-dashboard';
 import { untrackedExpense } from '@/lib/calc';
-import { relativeTime } from '@/lib/date';
+import { monthName, parseMonthKey, prevMonthKey, relativeTime, type MonthKey } from '@/lib/date';
 import { useStrings } from '@/lib/i18n';
 import { amountInputFromPaisa, formatTaka, sanitizeAmountInput, toPaisa } from '@/lib/money';
 import { useTheme } from '@/providers/theme-provider';
-import { useDataStore } from '@/stores/data';
+import { DEMO_OWNER, useDataStore } from '@/stores/data';
 import { showToast } from '@/stores/ui';
 
-/** "হিসাব মেলানো": the balance the records add up to next to the cash, bank and mobile money actually counted. */
-export function PracticalBalanceSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+/**
+ * Can a balance be counted for this month? The running month always. A month that has
+ * ended too, once it is closed — what was in hand on its last day settles its untracked
+ * expense and every opening after it. Not in the demo, whose closed history is fixed.
+ */
+export function useCanCountMonth(key: MonthKey): boolean {
+  const running = useDataStore((s) => s.monthKey);
+  const { year, month } = parseMonthKey(key);
+  const closed = useDataStore(
+    (s) => s.ownerEmail !== DEMO_OWNER && s.summaries.some((r) => !r.isDeleted && r.year === year && r.month === month),
+  );
+  return key === running || (key < running && closed);
+}
+
+/**
+ * "হিসাব মেলানো": the balance the records add up to next to the cash, bank and mobile money actually counted.
+ * `monthKey` pins the sheet to that month (Report). Without it the sheet opens on the running month and can
+ * switch to the one just ended, so last month's closing balance can still be entered after the month turns.
+ */
+export function PracticalBalanceSheet({
+  visible,
+  onClose,
+  monthKey,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  monthKey?: MonthKey;
+}) {
   const title = useStrings().practical.title;
   return (
     <BottomSheet visible={visible} onClose={onClose} title={title} scroll gap={14}>
       {/* Remounts on every open, so an edit left half-done last time starts fresh. */}
-      <SheetBody key={String(visible)} onClose={onClose} />
+      <SheetBody key={String(visible)} onClose={onClose} pinned={monthKey} />
     </BottomSheet>
   );
 }
 
-function SheetBody({ onClose }: { onClose: () => void }) {
+function SheetBody({ onClose, pinned }: { onClose: () => void; pinned?: MonthKey }) {
+  const s = useStrings();
+  const running = useDataStore((s) => s.monthKey);
+  const previous = prevMonthKey(running);
+  const canCountPrevious = useCanCountMonth(previous);
+  const [monthKey, setMonthKey] = useState<MonthKey>(pinned ?? running);
+
+  return (
+    <>
+      {!pinned && canCountPrevious ? (
+        <Segmented
+          options={[previous, running].map((key) => ({ value: key, label: monthName(parseMonthKey(key).month) }))}
+          value={monthKey}
+          onChange={setMonthKey}
+          accessibilityLabel={s.practical.monthA11y}
+        />
+      ) : null}
+      {/* A draft belongs to its month, so switching starts the other month fresh. */}
+      <MonthBody key={monthKey} monthKey={monthKey} onClose={onClose} />
+    </>
+  );
+}
+
+function MonthBody({ monthKey, onClose }: { monthKey: MonthKey; onClose: () => void }) {
   const { tokens } = useTheme();
   const s = useStrings();
   const t = s.practical;
-  const monthKey = useDataStore((s) => s.monthKey);
-  const current = useDataStore((s) => s.practicals[s.monthKey]);
+  // A month that has ended is counted as it stood on its last day.
+  const ended = useDataStore((s) => monthKey < s.monthKey);
+  const current = useDataStore((s) => s.practicals[monthKey]);
   const setPractical = useDataStore((s) => s.setPractical);
-  const { snapshot } = useDashboard();
+  const { snapshot } = useDashboard(monthKey);
+  const name = monthName(parseMonthKey(monthKey).month);
 
   const [editing, setEditing] = useState(!current);
   const [cash, setCash] = useState(current ? amountInputFromPaisa(current.cash) : '');
@@ -45,13 +97,14 @@ function SheetBody({ onClose }: { onClose: () => void }) {
 
   const draftTotal = toPaisa(cash || '0') + toPaisa(bank || '0') + toPaisa(mfs || '0');
   // While typing, reconcile against the draft — but not before anything has been typed.
-  const practical = editing && (cash || bank || mfs) ? draftTotal : (current?.amount ?? null);
+  // A closed month may carry a count only in its summary (closed on another device).
+  const practical = editing && (cash || bank || mfs) ? draftTotal : (current?.amount ?? snapshot.practical);
   const untracked = untrackedExpense(snapshot.theoretical, practical);
   const untrackedIsIncome = untracked < 0;
 
   const save = () => {
     setPractical(monthKey, { cash: toPaisa(cash || '0'), bank: toPaisa(bank || '0'), mfs: toPaisa(mfs || '0') });
-    showToast({ message: t.saved });
+    showToast({ message: ended ? t.savedEnded(name) : t.saved });
     onClose();
   };
 
@@ -66,12 +119,12 @@ function SheetBody({ onClose }: { onClose: () => void }) {
   return (
     <>
       <Text style={{ fontSize: textSize.sm, lineHeight: 19, color: tokens.muted, marginTop: -6 }}>
-        {t.intro}
+        {ended ? t.introEnded(name) : t.intro}
       </Text>
 
       <Card soft padding={16}>
         <ReconRow label={t.theoretical} value={formatTaka(snapshot.theoretical)} />
-        <ReconRow label={t.minusActual} value={practical == null ? '—' : formatTaka(practical)} />
+        <ReconRow label={ended ? t.minusEnded : t.minusActual} value={practical == null ? '—' : formatTaka(practical)} />
         <View style={{ height: 1, backgroundColor: tokens.line, marginVertical: 7 }} />
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <Text style={{ fontSize: textSize.md, fontWeight: '700', color: tokens.ink }}>
@@ -86,7 +139,9 @@ function SheetBody({ onClose }: { onClose: () => void }) {
         </View>
         <Text style={{ fontSize: textSize.sm, color: tokens.muted, marginTop: 6, lineHeight: 19 }}>
           {practical == null
-            ? t.hintNone
+            ? ended
+              ? t.hintNoneEnded
+              : t.hintNone
             : untrackedIsIncome
               ? t.hintIncome
               : t.hintExpense}

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { loanOutstanding, loanSettled } from '@/lib/calc';
-import { currentMonthKey } from '@/lib/date';
+import { computeDashboard, loanOutstanding, loanSettled } from '@/lib/calc';
+import { currentMonthKey, parseMonthKey, prevMonthKey } from '@/lib/date';
 import { useDataStore } from '@/stores/data';
 import { counted, tk } from '@/test/factories';
 
@@ -118,5 +118,43 @@ describe('record actions', () => {
     const before = s().incomes;
     s().updateIncome('missing', { amount: tk(1) });
     expect(s().incomes).toBe(before);
+  });
+});
+
+describe('counting a month that has ended', () => {
+  const ended = prevMonthKey(month);
+  const { year, month: m } = parseMonthKey(ended);
+  const inEnded = (day: number) => new Date(year, m - 1, day, 12).toISOString();
+  const endedSummary = () => s().summaries.find((r) => r.year === year && r.month === m)!;
+
+  beforeEach(() => {
+    useDataStore.setState({
+      ownerEmail: 'me@example.com',
+      profile: { ...s().profile, openingSavings: tk(1000) },
+      practicals: {},
+      ready: true, // month-close runs from here on
+    });
+  });
+
+  it("settles that month's untracked and the next opening, and later backdated entries close the gap", () => {
+    s().addExpense({ amount: tk(200), category: 'food', date: inEnded(10) });
+    expect(endedSummary()).toMatchObject({ untrackedExpense: 0, closingBalance: tk(800) });
+
+    // On the 1st of the new month: "on the 30th I had ৳700".
+    s().setPractical(ended, { cash: tk(700), bank: 0, mfs: 0 });
+    expect(endedSummary()).toMatchObject({
+      practicalBalance: tk(700),
+      untrackedExpense: tk(100),
+      monthlySaving: -tk(300),
+      closingBalance: tk(700),
+    });
+    const { incomes, expenses, loans, summaries } = s();
+    const running = computeDashboard({ monthKey: month, incomes, expenses, loans, summaries, baseOpening: tk(1000), practical: null });
+    expect(running.opening).toBe(tk(700));
+
+    // A forgotten expense from that month, logged now: the count already had it, so only the gap narrows.
+    s().addExpense({ amount: tk(60), category: 'food', date: inEnded(20) });
+    expect(s().practicals[ended].amount).toBe(tk(700));
+    expect(endedSummary()).toMatchObject({ untrackedExpense: tk(40), closingBalance: tk(700) });
   });
 });

@@ -263,6 +263,7 @@ Default ৮টি expense category ও ৫টি income source `src/constants/ca
 - **monthly_summary**: `id, year, month, openingBalance, totalIncome, totalDailyExpense, outstandingLent, outstandingBorrowed, untrackedExpense, monthlySaving, closingBalance, practicalBalance, isDeleted, deletedAt, syncStatus, createdAt, updatedAt` (unique: `year+month`)
 - **practical_balance**: `monthKey, cash, bank, mfs, amount, countedAt, updatedAt, syncStatus` — প্রতি মাসে একটি। Server-এ `PracticalBalance` (userId + monthKey) হিসেবে sync হয়; month-close-এ `amount` `monthly_summary.practicalBalance`-এ যায়।
   - **Auto-adjust** (`src/lib/calc/practical.ts`): entry add/edit/delete/settle হলে practical শুধু তখনই বদলায় যখন টাকার movement `countedAt`-এর পরে হয়েছে — আগের দিনের movement গোনা টাকার ভেতরেই আছে; একই দিনে entry কখন লেখা হয়েছে সেটা দেখা হয়। তাই আগের তারিখের ভুলে-যাওয়া খরচ লিখলে untracked কমে। Loan settle-এর টাকা settle-এর মাসে ফেরে।
+  - **শেষ হয়ে যাওয়া মাসের practical-ও পরে দেওয়া যায়** (মাসের শেষ দিনে হাতে যা ছিল): Home-এর শিটে আগের মাস (Segmented), Report-এ যেকোনো closed মাসের untracked সারি থেকে। শর্ত `useCanCountMonth()` (`src/components/practical-balance-sheet.tsx`) — চলতি মাস, অথবা যে মাসের summary আছে (demo বাদে)। `countedAt` তখন এখনকার সময়, তাই ওই মাসের তারিখের কোনো entry আর এটা বদলায় না; month-close ওই মাস + পরের সব মাস recompute করে (পরের মাসের opening বদলায়)।
 - **meta/kv** (sync হয় না — ডিভাইসের নিজের): `lastSyncTime`, `lastSyncedAt`, `profile`, `ownerEmail`, `onboardingDone`, `reminders` (রিমাইন্ডার সেটিংস JSON), `themeMode`, `language`, শেষ ব্যবহৃত category/source।
 
 Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `name`, `email`।
@@ -352,7 +353,7 @@ Profile/settings (server): `openingSavings` (paisa), `currency`, `timezone`, `na
   - নতুন কোনো TextInput বানালে তার `onFocus`-এ `useScrollFocusedIntoView()?.()` ডাকো — কীবোর্ড আগে থেকে খোলা থাকলে শুধু ফোকাস বদলের খবরেই scroll করতে হয় (`Field`/`AmountInput` এভাবেই করা)।
   - ⚠️ কীবোর্ডের উচ্চতা সরাসরি না ধরে **কতটুকু ঢাকছে তা মেপে** নেওয়া হয় — যেখানে উইন্ডো সত্যিই resize হয় সেখানে মাপটা ০ আসে, তাই কোথাও দুইবার সরে না।
 - ⚠️ **`ListRow`-এর `trailing`-এ আর একটা Pressable/Button বসাবে না** — web-এ `<button>`-এর ভেতর `<button>` invalid (hydration error)। পাশে আলাদা control দরকার হলে সারিটা একটা row `View`-তে মুড়ে ListRow-এর বাইরে বসাও (`src/app/recurring.tsx`-এর `RuleRow` দেখো)।
-- **Tabs:** হোম · লেনদেন · ＋ · পাওনা-দেনা (`loans`) · রিপোর্ট। Practical balance ইনপুট ("হিসাব মেলানো") আলাদা tab নয় — Home-এর untracked card থেকে `PracticalBalanceSheet` খোলে। দিন অনুযায়ী লেনদেন তালিকা + search/filter লেনদেন tab-এ (`src/lib/activity.ts`)।
+- **Tabs:** হোম · লেনদেন · ＋ · পাওনা-দেনা (`loans`) · রিপোর্ট। Practical balance ইনপুট ("হিসাব মেলানো") আলাদা tab নয় — Home-এর untracked card থেকে `PracticalBalanceSheet` খোলে (আগের মাসটা closed হলে উপরে আগের/চলতি মাস বদলানো যায়); Report-এর untracked সারি দেখানো মাসের জন্য একই শিট খোলে। দিন অনুযায়ী লেনদেন তালিকা + search/filter লেনদেন tab-এ (`src/lib/activity.ts`)।
 - **লম্বা list virtualized:** পুরো screen জুড়ে list হলে `<Screen scroll={false} padded={false}>` + `SectionList`/`FlatList` (`contentContainerStyle={screenListContentStyle}`)। ছোট, সীমিত list (Home-এর ৮টা entry, মাসের তালিকা) ScrollView-এ থাকতে পারে।
 
 ---

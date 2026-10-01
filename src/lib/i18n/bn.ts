@@ -256,6 +256,12 @@ const bn = {
     mfsSubtitle: 'বিকাশ, নগদ, রকেট',
     countedAt: (when: string) => `সর্বশেষ গোনা হয়েছে · ${when}`,
     update: 'ব্যালেন্স আপডেট করুন',
+    monthA11y: 'কোন মাসের ব্যালেন্স',
+    introEnded: (month: string) =>
+      `${month}-এর শেষ দিনে হাতে, ব্যাংকে ও মোবাইল ব্যাংকিংয়ে মোট কত ছিল লিখুন — ওই মাসের হিসাবের বাইরের খরচ বের হবে, আর পরের মাসের ওপেনিংও সেই অনুযায়ী ঠিক হবে।`,
+    minusEnded: '− মাস শেষে ছিল',
+    hintNoneEnded: 'মাস শেষে কত ছিল দিলে লেখা হয়নি এমন খরচ এখানে ধরা পড়বে।',
+    savedEnded: (month: string) => `${month}-এর ব্যালেন্স আপডেট হয়েছে`,
   },
 
   recurringSheet: {
@@ -470,6 +476,7 @@ const bn = {
       `খরচ ${expense} · ${untrackedLabel} ${untracked}`,
     untrackedShort: 'আনট্র্যাকড',
     closingLine: (amount: string) => `শেষে ${amount}`,
+    enterBalance: 'ব্যালেন্স দিন',
   },
 
   settings: {

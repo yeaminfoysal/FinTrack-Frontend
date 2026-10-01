@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { CategoryBars, SavingBars, type MonthSaving } from '@/components/charts';
 import { MonthSwitcher, useMonthsWithData } from '@/components/month-switcher';
 import { PageTitle } from '@/components/page-title';
+import { PracticalBalanceSheet, useCanCountMonth } from '@/components/practical-balance-sheet';
 import { AmountText } from '@/components/ui/amount-text';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -55,6 +56,8 @@ export default function ReportScreen() {
   const practicals = useDataStore((s) => s.practicals);
   const profile = useDataStore((s) => s.profile);
   const [exporting, setExporting] = useState<'share' | 'save' | null>(null);
+  const [balanceOpen, setBalanceOpen] = useState(false);
+  const canCount = useCanCountMonth(monthKey);
 
   const categories = useMemo(() => categoryTotals(expenses, monthKey), [expenses, monthKey]);
   const trend = useMemo<MonthSaving[]>(
@@ -173,11 +176,22 @@ export default function ReportScreen() {
         <BreakRow divider label={b.dailyExpense} value={`− ${formatTaka(snapshot.monthDailyExpense)}`} color={tokens.expense} />
         <BreakRow divider label={b.outstandingLent} value={formatTaka(snapshot.outstandingLent)} color={tokens.lent} />
         <BreakRow divider label={b.outstandingBorrowed} value={formatTaka(snapshot.outstandingBorrowed)} color={tokens.borrowed} />
+        {/* Opens the reconcile sheet for this month — an ended month's balance can still be entered. */}
         <BreakRow
           divider
           label={snapshot.untracked < 0 ? b.untrackedIncome : b.untrackedExpense}
-          value={formatTaka(Math.abs(snapshot.untracked))}
-          color={snapshot.untracked < 0 ? tokens.income : tokens.borrowed}
+          value={
+            canCount && snapshot.practical == null ? t.enterBalance : formatTaka(Math.abs(snapshot.untracked))
+          }
+          color={
+            canCount && snapshot.practical == null
+              ? tokens.primary
+              : snapshot.untracked < 0
+                ? tokens.income
+                : tokens.borrowed
+          }
+          onPress={canCount ? () => setBalanceOpen(true) : undefined}
+          accessibilityHint={strings.home.reconcileHint}
         />
         <BreakRow divider label={b.netWorth} value={formatTaka(snapshot.netWorth)} color={tokens.ink} />
         <BreakRow divider strong label={b.closing} value={formatTaka(closing)} color={tokens.ink} />
@@ -255,6 +269,8 @@ export default function ReportScreen() {
           style={{ flex: 1 }}
         />
       </View>
+
+      <PracticalBalanceSheet visible={balanceOpen} onClose={() => setBalanceOpen(false)} monthKey={monthKey} />
     </Screen>
   );
 }
@@ -265,33 +281,44 @@ function BreakRow({
   color,
   divider,
   strong,
+  onPress,
+  accessibilityHint,
 }: {
   label: string;
   value: string;
   color: string;
   divider?: boolean;
   strong?: boolean;
+  onPress?: () => void;
+  accessibilityHint?: string;
 }) {
   const { tokens } = useTheme();
   return (
-    <View
-      style={{
+    <Pressable
+      disabled={!onPress}
+      onPress={onPress}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityHint={onPress ? accessibilityHint : undefined}
+      style={({ pressed }) => ({
         flexDirection: 'row',
         justifyContent: 'space-between',
+        alignItems: 'center',
         gap: 12,
         paddingVertical: 12,
         paddingHorizontal: 16,
         borderTopWidth: divider ? 1 : 0,
         borderTopColor: tokens.line,
         backgroundColor: strong ? tokens.surface2 : 'transparent',
-      }}>
-      <Text style={{ fontSize: textSize.md, fontWeight: strong ? '700' : '400', color: strong ? tokens.ink : tokens.muted }}>
+        opacity: pressed ? 0.7 : 1,
+      })}>
+      <Text style={{ flex: 1, fontSize: textSize.md, fontWeight: strong ? '700' : '400', color: strong ? tokens.ink : tokens.muted }}>
         {label}
       </Text>
       <Text style={{ fontSize: textSize.md, fontWeight: strong ? '700' : '600', color, fontVariant: ['tabular-nums'] }}>
         {value}
       </Text>
-    </View>
+      {onPress ? <Icon name="chevron-forward" size={16} color={tokens.muted} style={{ marginLeft: -6 }} /> : null}
+    </Pressable>
   );
 }
 

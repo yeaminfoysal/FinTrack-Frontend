@@ -24,6 +24,8 @@ export function practicalPatch(
 
 export const createPracticalSlice: DataSlice<PracticalActions> = (set) => ({
   setPractical: (monthKey, parts) => {
+    // An ended month is counted after it ended, so every entry dated in it falls before
+    // the count: none moves the balance, and a forgotten one logged later narrows its untracked.
     const now = nowIso();
     const rec: PracticalBalance = {
       monthKey,
